@@ -9,11 +9,11 @@
 
 # Create a private key and a self-signed certificate for the queue manager
 
-openssl req -newkey rsa:2048 -nodes -keyout qm7.key -subj "/CN=qm7" -x509 -days 3650 -out qm7.crt
+openssl req -newkey rsa:2048 -nodes -keyout qm7.key -subj "//CN=qm7" -x509 -days 3650 -out qm7.crt
 
 # Create a private key and a self-signed certificate for the client application
 
-openssl req -newkey rsa:2048 -nodes -keyout mqx1.key -subj "/CN=mqx1" -x509 -days 3650 -out mqx1.crt
+openssl req -newkey rsa:2048 -nodes -keyout mqx1.key -subj "//CN=mqx1" -x509 -days 3650 -out mqx1.crt
 
 # Create the client JKS key store:
 
@@ -39,11 +39,11 @@ keytool -list -keystore mqx1-keystore.jks -alias mqx1 -storepass password
 
 # Create TLS Secret for the Queue Manager
 
-oc create secret tls example-07-qm7-secret -n cp4i --key="qm7.key" --cert="qm7.crt"
+oc create secret tls example-07-qm7-secret -n $OCP_PROJECT --key="qm7.key" --cert="qm7.crt"
 
 # Create TLS Secret with the client's certificate
 
-oc create secret generic example-07-mqx1-secret -n cp4i --from-file=mqx1.crt=mqx1.crt
+oc create secret generic example-07-mqx1-secret -n $OCP_PROJECT --from-file=mqx1.crt=mqx1.crt
 
 # Create a config map containing MQSC commands
 
@@ -78,7 +78,7 @@ data:
       SecurityPolicy=UserExternal
 EOF
 
-oc apply -n cp4i -f qm7-configmap.yaml
+oc apply -n $OCP_PROJECT -f qm7-configmap.yaml
 
 # Create the required route for SNI
 
@@ -98,7 +98,7 @@ spec:
     termination: passthrough
 EOF
 
-oc apply -n cp4i -f qm7chl-route.yaml
+# no need to create route (because not using channel routes) - Operator automatically generates route for hostname :: oc apply -n cp4i -f qm7chl-route.yaml
 
 # Deploy the queue manager
 
@@ -110,7 +110,7 @@ metadata:
 spec:
   license:
     accept: true
-    license: L-RJON-CD3JKX
+    license: L-RJON-C7QG3S
     use: NonProduction
   queueManager:
     name: QM7
@@ -146,16 +146,16 @@ spec:
           - mqx1.crt
 EOF
 
-oc apply -n cp4i -f qm7-qmgr.yaml
+oc apply -n $OCP_PROJECT -f qm7-qmgr.yaml
 
 # wait 5 minutes for queue manager to be up and running
 # (shouldn't take more than 2 minutes, but just in case)
 for i in {1..60}
 do
-  phase=`oc get qmgr -n cp4i qm7 -o jsonpath="{.status.phase}"`
+  phase=`oc get qmgr -n $OCP_PROJECT qm7 -o jsonpath="{.status.phase}"`
   if [ "$phase" == "Running" ] ; then break; fi
   echo "Waiting for qm7...$i"
-  oc get qmgr -n cp4i qm7
+  oc get qmgr -n $OCP_PROJECT qm7
   sleep 5
 done
 
@@ -170,12 +170,12 @@ echo "Queue Manager qm7 is Running"
 # Create the Client Channel Definition Table (CCDT)
 # Find the queue manager host name
 
-qmhostname=`oc get route -n cp4i qm7-ibm-mq-qm -o jsonpath="{.spec.host}"`
+qmhostname=`oc get route -n $OCP_PROJECT qm7-ibm-mq-qm -o jsonpath="{.spec.host}"`
 echo $qmhostname
 
 # Test:
 
-ping -c 3 $qmhostname
+nslookup $qmhostname
 
 # Create ccdt.json
 
