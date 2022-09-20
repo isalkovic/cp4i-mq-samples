@@ -73,21 +73,29 @@ keytool -importcert -file qm7.crt -alias qm7cert -keystore mqx1-truststore.jks -
 ```
 
 ### IVO:: import also APIS certificates to client's JKS trust store
+Before running the following commands, akes sure you have acquired the intermediary and root certificates and that they are available with the names referenced in the commands.
+```
 keytool -keystore mqx1-truststore.jks -storetype jks -import -file APIS_intermed_certificate.crt -alias apisintermedcert -storepass password -noprompt
 keytool -keystore mqx1-truststore.jks -storetype jks -import -file APIS_root_certificate.crt -alias apisrootcert -storepass password -noprompt
+```
 
 List the trust store certificate:
 
 ```
-keytool -list -keystore mqx1-truststore.jks -alias qm7cert -storepass password
+keytool -list -keystore mqx1-truststore.jks -storepass password
 
 ```
 
 Output should be similar to this (truncated for readability; ignore the warning about proprietary format):
 
 ```
-qm7cert, 7 Dec 2021, trustedCertEntry, 
+qm7cert, 7 Dec 2021, trustedCertEntry,
 Certificate fingerprint (SHA-256): 96:62:71:B8:46:AE:48:A0:02:E0:74:BD...
+apisrootcert, 20. ruj 2022., trustedCertEntry,
+Certificate fingerprint (SHA-256): F1:E7:73:46:E4:FC:E0:34:83:E3:94:9D:...
+qm7cert, 20. ruj 2022., trustedCertEntry,
+Certificate fingerprint (SHA-256): E8:A4:E1:08:ED:00:A9:57:E9:59:F9:75:...
+
 
 ```
 
@@ -124,7 +132,7 @@ keytool -list -keystore mqx1-keystore.jks -alias mqx1 -storepass password
 Output should be similar to this (truncated for readability; ignore the warning about proprietary format):
 
 ```
-mqx1, 7 Dec 2021, PrivateKeyEntry, 
+mqx1, 7 Dec 2021, PrivateKeyEntry,
 Certificate fingerprint (SHA-256): 95:17:91:9C:09:A1:64:5D:23:AF:66:BA...
 
 ```
@@ -148,6 +156,8 @@ oc create secret generic example-07-mqx1-secret -n $OCP_PROJECT --from-file=mqx1
 ### Create a config map containing MQSC commands and qm.ini
 
 #### Create the config map yaml file
+
+The specific here is the we need to set "OutboundSNI=HOSTNAME" in the .ini file.
 
 ```
 cat > qm7-configmap.yaml << EOF
@@ -179,6 +189,8 @@ data:
       Name=AuthorizationService
       EntryPoints=14
       SecurityPolicy=UserExternal
+    SSL:
+      OutboundSNI=HOSTNAME
 EOF
 #
 cat qm7-configmap.yaml
@@ -254,7 +266,7 @@ spec:
       - name: example
         secret:
           secretName: example-07-qm7-secret
-          items: 
+          items:
           - tls.key
           - tls.crt
     trust:
@@ -332,27 +344,56 @@ cat ccdt.json
 
 ```
 
+
+As the last step before starting and configuring MQ Explorer, we need to tell MQ Explorer to connect to the MQ server using HOSTNAME, instead of CHANNEL (default is CHANNEL).
+To do so, we need to create a mqclient.ini file and put it on one of the location where it will be found. It must contain at least the following content:
+
+```
+SSL:
+   AllowTLSV13=TRUE
+   OutboundSNI=HOSTNAME
+```
+For location of the mqclient.ini file on Windows, I have used "C:\ProgramData\IBM\MQ".
+Other possible locations are specified in MQ documentation:
+https://www.ibm.com/docs/en/ibm-mq/9.3?topic=file-location-client-configuration
+
+An example mqclient.ini file is provided along with this documentation.
+
 # Connect MQ Explorer
 
 1. Start MQ Explorer.
 
 1. Right-click on `Queue Managers` (top left) and select `Add Remote Queue Manager...`
 
+![add remote QMGR](./images/mqexplorer01.png)
+
 1. Enter the queue manager name (`QM7`, case sensitive) and select the `Connect using a client channel definition table` radio button. Click `Next`.
 
+![QMGR name](./images/mqexplorer02.png)
+
 1. On the next pane (`Specify new connection details`), click `Browse...` and select the file `ccdt.json` just created. Click `Next`.
+
+![add CCDT](./images/mqexplorer03.png)
 
 1. On `Specify SSL certificate key repository details, tick `Enable SSL key repositories`.
 
 1. On `Trusted Certificate Store` click on `Browse...` and select the file `mqx1-truststore.jks`.
 
+![SSL repos](./images/mqexplorer04.png)
+
 1. Select `Enter password...` and enter the trust store password (in our case, `password`).
+
+![SSL repos password](./images/mqexplorer05.png)
 
 1. On `Personal Certificate Store` click on `Browse...` and select the file `mqx1-keystore.jks`.
 
 1. Select `Enter password...` and enter the key store password (in our case, `password`).
 
 Click `Finish`.
+
+![Finish](./images/mqexplorer06.png)
+
+You should now have a connection to your QMGR deployed on Openshift.
 
 ## Cleanup
 

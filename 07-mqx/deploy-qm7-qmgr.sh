@@ -22,7 +22,7 @@ openssl req -newkey rsa:2048 -nodes -keyout mqx1.key -subj "//CN=mqx1" -x509 -da
 openssl pkcs12 -export -out mqx1.p12 -inkey mqx1.key -in mqx1.crt -name mqx1 -password pass:password
 
 # Next, create mqx1 jks keystore for mq explorer
-keytool -importkeystore -deststorepass password -destkeypass password -destkeystore mqx1-keystore.jks -deststoretype jks -srckeystore mqx1.p12 -srcstoretype PKCS12 -srcstorepass password -alias mqx1 
+keytool -importkeystore -deststorepass password -destkeypass password -destkeystore mqx1-keystore.jks -deststoretype jks -srckeystore mqx1.p12 -srcstoretype PKCS12 -srcstorepass password -alias mqx1
 
 # Create JKS trust store for MQ Explorer
 keytool -importcert -file qm7.crt -alias qm7cert -keystore mqx1-truststore.jks -storetype jks -storepass password -noprompt
@@ -31,7 +31,7 @@ keytool -keystore mqx1-truststore.jks -storetype jks -import -file APIS_intermed
 keytool -keystore mqx1-truststore.jks -storetype jks -import -file APIS_root_certificate.crt -alias apisrootcert -storepass password -noprompt
 
 # List the trust store certificate
-keytool -list -keystore mqx1-truststore.jks -alias qm7cert -storepass password
+keytool -list -keystore mqx1-truststore.jks -storepass password
 
 # List the key store certificate
 keytool -list -keystore mqx1-keystore.jks -alias mqx1 -storepass password
@@ -75,6 +75,8 @@ data:
     SET AUTHREC PROFILE('**') OBJTYPE(SERVICE)  PRINCIPAL('mqx1') AUTHADD(ALLADM, CRT)
     SET AUTHREC PROFILE('**') OBJTYPE(TOPIC)    PRINCIPAL('mqx1') AUTHADD(ALLADM, CRT, ALLMQI)
   qm7.ini: |-
+    SSL:
+      OutboundSNI=HOSTNAME
     Service:
       Name=AuthorizationService
       EntryPoints=14
@@ -130,7 +132,7 @@ spec:
     storage:
       queueManager:
         type: ephemeral
-  version: 9.3.0.0-r2
+  version: 9.2.5.0-r3
   web:
     enabled: false
   pki:
@@ -138,7 +140,7 @@ spec:
       - name: example
         secret:
           secretName: example-07-qm7-secret
-          items: 
+          items:
           - tls.key
           - tls.crt
     trust:
