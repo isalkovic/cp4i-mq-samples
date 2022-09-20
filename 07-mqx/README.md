@@ -345,6 +345,12 @@ cat ccdt.json
 ```
 
 
+
+
+# Connect MQ Explorer
+
+## Define mqclient.ini file
+
 As the last step before starting and configuring MQ Explorer, we need to tell MQ Explorer to connect to the MQ server using HOSTNAME, instead of CHANNEL (default is CHANNEL).
 To do so, we need to create a mqclient.ini file and put it on one of the location where it will be found. It must contain at least the following content:
 
@@ -359,7 +365,7 @@ https://www.ibm.com/docs/en/ibm-mq/9.3?topic=file-location-client-configuration
 
 An example mqclient.ini file is provided along with this documentation.
 
-# Connect MQ Explorer
+## Add remote QMGR to MQ Explorer
 
 1. Start MQ Explorer.
 
