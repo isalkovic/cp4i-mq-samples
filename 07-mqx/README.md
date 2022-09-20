@@ -1,4 +1,4 @@
-# Example: MQ Explorer
+# Example: Conencting MQ Explorer to QMGR on Openshift
 
 This is a modified example of the original, which shows how to connect MQ Explorer to MQ running on Openshift, when using HOSTNAME instead of CHANNEL in the route. It is based on the [03-auth](../03-auth) example: the connection requires mutual TLS and user permissions are checked. The user identity is `mqx1` instead of `app1`.
 
@@ -73,9 +73,8 @@ keytool -importcert -file qm7.crt -alias qm7cert -keystore mqx1-truststore.jks -
 ```
 
 ### IVO:: import also APIS certificates to client's JKS trust store
-Before running the following commands, akes sure you have acquired the intermediary and root certificates and that they are available with the names referenced in the commands.
+Before running the following commands, make sure you have acquired the root certificate and that it is available with the name referenced in the command:
 ```
-keytool -keystore mqx1-truststore.jks -storetype jks -import -file APIS_intermed_certificate.crt -alias apisintermedcert -storepass password -noprompt
 keytool -keystore mqx1-truststore.jks -storetype jks -import -file APIS_root_certificate.crt -alias apisrootcert -storepass password -noprompt
 ```
 

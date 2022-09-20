@@ -26,8 +26,7 @@ keytool -importkeystore -deststorepass password -destkeypass password -destkeyst
 
 # Create JKS trust store for MQ Explorer
 keytool -importcert -file qm7.crt -alias qm7cert -keystore mqx1-truststore.jks -storetype jks -storepass password -noprompt
-# IVO:: import also APIS certificates to client's JKS trust store
-keytool -keystore mqx1-truststore.jks -storetype jks -import -file APIS_intermed_certificate.crt -alias apisintermedcert -storepass password -noprompt
+# IVO:: import also APIS root certificate to client's JKS trust store
 keytool -keystore mqx1-truststore.jks -storetype jks -import -file APIS_root_certificate.crt -alias apisrootcert -storepass password -noprompt
 
 # List the trust store certificate
