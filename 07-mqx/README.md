@@ -72,6 +72,10 @@ keytool -importcert -file qm7.crt -alias qm7cert -keystore mqx1-truststore.jks -
 
 ```
 
+### IVO:: import also APIS certificates to client's JKS trust store
+keytool -keystore mqx1-truststore.jks -storetype jks -import -file APIS_intermed_certificate.crt -alias apisintermedcert -storepass password -noprompt
+keytool -keystore mqx1-truststore.jks -storetype jks -import -file APIS_root_certificate.crt -alias apisrootcert -storepass password -noprompt
+
 List the trust store certificate:
 
 ```
@@ -290,7 +294,7 @@ echo $qmhostname
 
 Test (optional):
 ```
-ping -c 3 $qmhostname
+nslookup $qmhostname
 
 ```
 
