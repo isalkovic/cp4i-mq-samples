@@ -369,31 +369,31 @@ An example mqclient.ini file is provided along with this documentation.
 
 1. Start MQ Explorer.
 
-1. Right-click on `Queue Managers` (top left) and select `Add Remote Queue Manager...`
+2. Right-click on `Queue Managers` (top left) and select `Add Remote Queue Manager...`
 
 ![add remote QMGR](./images/mqexplorer01.png)
 
-1. Enter the queue manager name (`QM7`, case sensitive) and select the `Connect using a client channel definition table` radio button. Click `Next`.
+3. Enter the queue manager name (`QM7`, case sensitive) and select the `Connect using a client channel definition table` radio button. Click `Next`.
 
 ![QMGR name](./images/mqexplorer02.png)
 
-1. On the next pane (`Specify new connection details`), click `Browse...` and select the file `ccdt.json` just created. Click `Next`.
+4. On the next pane (`Specify new connection details`), click `Browse...` and select the file `ccdt.json` just created. Click `Next`.
 
 ![add CCDT](./images/mqexplorer03.png)
 
-1. On `Specify SSL certificate key repository details, tick `Enable SSL key repositories`.
+5. On `Specify SSL certificate key repository details, tick `Enable SSL key repositories`.
 
-1. On `Trusted Certificate Store` click on `Browse...` and select the file `mqx1-truststore.jks`.
+5.1. On `Trusted Certificate Store` click on `Browse...` and select the file `mqx1-truststore.jks`.
 
 ![SSL repos](./images/mqexplorer04.png)
 
-1. Select `Enter password...` and enter the trust store password (in our case, `password`).
+5.2. Select `Enter password...` and enter the trust store password (in our case, `password`).
 
 ![SSL repos password](./images/mqexplorer05.png)
 
-1. On `Personal Certificate Store` click on `Browse...` and select the file `mqx1-keystore.jks`.
+5.3. On `Personal Certificate Store` click on `Browse...` and select the file `mqx1-keystore.jks`.
 
-1. Select `Enter password...` and enter the key store password (in our case, `password`).
+5.4. Select `Enter password...` and enter the key store password (in our case, `password`).
 
 Click `Finish`.
 
