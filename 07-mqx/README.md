@@ -1,6 +1,6 @@
 # Example: MQ Explorer
 
-This example shows how to connect MQ Explorer. It is based on the [03-auth](../03-auth) example: the connection requires mutual TLS and user permissions are checked. The user identity is `mqx1` instead of `app1`.
+This is a modified example of the original, which shows how to connect MQ Explorer to MQ running on Openshift, when using HOSTNAME instead of CHANNEL in the route. It is based on the [03-auth](../03-auth) example: the connection requires mutual TLS and user permissions are checked. The user identity is `mqx1` instead of `app1`.
 
 ***Note:*** at the time of writing, this example doesn't work on MacOS.
 
@@ -11,13 +11,24 @@ Open a terminal and login to the OpenShift cluster where you installed the CP4I 
 If not already done, clone this repository and navigate to this directory:
 
 ```
-git clone https://github.com/ibm-messaging/cp4i-mq-samples.git
+git clone https://github.com/isalkovic/cp4i-mq-samples.git
 
 ```
 
 ```
 cd cp4i-mq-samples/07-mqx
 
+```
+### Set Openshift project name
+In the terminal, run the following command (or appropriate depending on your OS/environment):
+```
+export OCP_PROJECT=cp4i-mq-poc
+```
+
+Remember to change the name of the project to the actual Project name on Openshift, which you will be using.
+You can check that the value is set properly by running the following command:
+```
+echo $OCP_PROJECT
 ```
 
 ### Clean up if not first time
@@ -40,7 +51,7 @@ You can copy/paste the commands shown here, or run the script [deploy-qm7-qmgr.s
 ### Create a private key and a self-signed certificate for the queue manager
 
 ```
-openssl req -newkey rsa:2048 -nodes -keyout qm7.key -subj "/CN=qm7" -x509 -days 3650 -out qm7.crt
+openssl req -newkey rsa:2048 -nodes -keyout qm7.key -subj "//CN=qm7" -x509 -days 3650 -out qm7.crt
 
 ```
 
@@ -79,7 +90,7 @@ Certificate fingerprint (SHA-256): 96:62:71:B8:46:AE:48:A0:02:E0:74:BD...
 ### Create a private key and a self-signed certificate for MQ Explorer
 
 ```
-openssl req -newkey rsa:2048 -nodes -keyout mqx1.key -subj "/CN=mqx1" -x509 -days 3650 -out mqx1.crt
+openssl req -newkey rsa:2048 -nodes -keyout mqx1.key -subj "//CN=mqx1" -x509 -days 3650 -out mqx1.crt
 
 ```
 
@@ -117,14 +128,14 @@ Certificate fingerprint (SHA-256): 95:17:91:9C:09:A1:64:5D:23:AF:66:BA...
 ### Create TLS Secret for the Queue Manager
 
 ```
-oc create secret tls example-07-qm7-secret -n cp4i --key="qm7.key" --cert="qm7.crt"
+oc create secret tls example-07-qm7-secret -n $OCP_PROJECT --key="qm7.key" --cert="qm7.crt"
 
 ```
 
 ### Create TLS Secret with the client's certificate
 
 ```
-oc create secret generic example-07-mqx1-secret -n cp4i --from-file=mqx1.crt=mqx1.crt
+oc create secret generic example-07-mqx1-secret -n $OCP_PROJECT --from-file=mqx1.crt=mqx1.crt
 
 ```
 
@@ -196,44 +207,10 @@ These commands give user `mqx1` full administrative rights. They are based on th
 #### Create the config map
 
 ```
-oc apply -n cp4i -f qm7-configmap.yaml
+oc apply -n $OCP_PROJECT -f qm7-configmap.yaml
 
 ```
 
-### Create the required route for SNI
-
-```
-cat > qm7chl-route.yaml << EOF
-apiVersion: route.openshift.io/v1
-kind: Route
-metadata:
-  name: example-07-qm7-route
-spec:
-  host: qm7chl.chl.mq.ibm.com
-  to:
-    kind: Service
-    name: qm7-ibm-mq
-  port:
-    targetPort: 1414
-  tls:
-    termination: passthrough
-EOF
-#
-cat qm7chl-route.yaml
-
-```
-
-```
-oc apply -n cp4i -f qm7chl-route.yaml
-
-```
-
-Check:
-
-```
-oc describe route example-07-qm7-route
-
-```
 
 ### Deploy the queue manager
 
@@ -248,7 +225,7 @@ metadata:
 spec:
   license:
     accept: true
-    license: L-RJON-CD3JKX
+    license: L-RJON-C7QG3S
     use: NonProduction
   queueManager:
     name: QM7
@@ -265,7 +242,7 @@ spec:
     storage:
       queueManager:
         type: ephemeral
-  version: 9.3.0.0-r2
+  version: 9.2.5.0-r3
   web:
     enabled: false
   pki:
@@ -290,14 +267,14 @@ cat qm7-qmgr.yaml
 #### Create the queue manager
 
 ```
-oc apply -n cp4i -f qm7-qmgr.yaml
+oc apply -n $OCP_PROJECT -f qm7-qmgr.yaml
 
 ```
 
 ### Confirm that the queue manager is running
 
 ```
-oc get qmgr -n cp4i qm7
+oc get qmgr -n $OCP_PROJECT qm7
 
 ```
 
@@ -306,7 +283,7 @@ oc get qmgr -n cp4i qm7
 ### Find the queue manager host name
 
 ```
-qmhostname=`oc get route -n cp4i qm7-ibm-mq-qm -o jsonpath="{.spec.host}"`
+qmhostname=`oc get route -n $OCP_PROJECT qm7-ibm-mq-qm -o jsonpath="{.spec.host}"`
 echo $qmhostname
 
 ```
