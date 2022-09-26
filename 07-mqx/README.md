@@ -1,6 +1,7 @@
-# Example: Conencting MQ Explorer to QMGR on Openshift
+# Example: Conencting MQ Explorer and rfhutil to QMGR on Openshift
 
 This is a modified example of the original, which shows how to connect MQ Explorer to MQ running on Openshift, when using HOSTNAME instead of CHANNEL in the route. It is based on the [03-auth](../03-auth) example: the connection requires mutual TLS and user permissions are checked. The user identity is `mqx1` instead of `app1`.
+Additionally, example has been extended to show how to configure the popular rfhutil tool with the same MQ Queue manager, running on openshift and using mTLS. There are two versions of the rfhutil tool - rfhutil.exe and rfhutilc.exe -> make sure you download and use the RFHUTILC.EXE, which is the one using the MQ client and making a connection to a remote QM.
 
 ***Note:*** at the time of writing, this example doesn't work on MacOS.
 
@@ -133,6 +134,45 @@ Output should be similar to this (truncated for readability; ignore the warning 
 ```
 mqx1, 7 Dec 2021, PrivateKeyEntry,
 Certificate fingerprint (SHA-256): 95:17:91:9C:09:A1:64:5D:23:AF:66:BA...
+
+```
+
+## Setup TLS for rfhutil tool
+
+Now, we also need to package these keys and certificates to a CMS .kdb keystore/truststore, which is a formate required by rfhutilc.exe tool
+First, create the store:
+
+```
+runmqakm -keydb -create -db rfhutil_allin1_store.kdb -pw password -type cms -stash
+
+```
+
+Next, add the queue manager public key to the client key database:
+
+```
+runmqakm -cert -add -db rfhutil_allin1_store.kdb -label qm1cert -file qm7.crt -format ascii -stashed
+
+```
+Also, we need to import APIS root certificate to client's CMS trust store
+
+```
+runmqakm -cert -add -db rfhutil_allin1_store.kdb -label apisrootcert -file APIS_root_certificate.crt -format ascii -stashed
+
+```
+
+Next, add the client's certificate and key to the client key database:
+Import the PKCS12 file. The label **must be** `ibmwebspheremq<your userid>`:
+
+```
+label=ibmwebspheremq`id -u -n`
+runmqakm -cert -import -target rfhutil_allin1_store.kdb -file mqx1.p12 -target_stashed -pw password -new_label $label
+
+```
+
+Last Checkpoint. List the database certificates:
+
+```
+runmqakm -cert -list -db rfhutil_allin1_store.kdb -stashed
 
 ```
 
@@ -399,6 +439,18 @@ Click `Finish`.
 ![Finish](./images/mqexplorer06.png)
 
 You should now have a connection to your QMGR deployed on Openshift.
+
+## Configure rfhutilc.exe to connect to the QMgr
+
+1. Start the rfhutilc.exe.
+
+2. Fill in the fields `Queue manager name` and `Queue name` as indicated on the image below.
+
+3. Click on the `Set Conn Id` button and fill the form as indicated on the image below (reference your .kdb file location)
+
+![configure rfhutil tool](./images/rfhutilc01.png)
+
+4. To test, you can push the `Write Q` button. If you get the message similar to "Message sent to TEST length=0" -> this means you have successfully configured your rfhutilc tool.
 
 ## Cleanup
 

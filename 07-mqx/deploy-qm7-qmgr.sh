@@ -7,21 +7,21 @@
 # Not for Production use. For demo and training only.
 #
 
-# Create a private key and a self-signed certificate for the queue manager
+# configure default Openshift project to use - change this value to the project name applicable to your use case
+export OCP_PROJECT=cp4i-mq-poc
+echo $OCP_PROJECT
 
+# Create a private key and a self-signed certificate for the queue manager
 openssl req -newkey rsa:2048 -nodes -keyout qm7.key -subj "//CN=qm7" -x509 -days 3650 -out qm7.crt
 
 # Create a private key and a self-signed certificate for the client application
-
 openssl req -newkey rsa:2048 -nodes -keyout mqx1.key -subj "//CN=mqx1" -x509 -days 3650 -out mqx1.crt
 
 # Create the client JKS key store:
-
 # First, put the key (`mqx1.key`) and certificate (`mqx1.crt`) into a PKCS12 file. PKCS12 is a format suitable for importing into the client key database (`mqx1key.kdb`):
-
 openssl pkcs12 -export -out mqx1.p12 -inkey mqx1.key -in mqx1.crt -name mqx1 -password pass:password
 
-# Next, create mqx1 jks keystore for mq explorer
+# Next, create mqx1 jks keystore , format required by MQ Explorer
 keytool -importkeystore -deststorepass password -destkeypass password -destkeystore mqx1-keystore.jks -deststoretype jks -srckeystore mqx1.p12 -srcstoretype PKCS12 -srcstorepass password -alias mqx1
 
 # Create JKS trust store for MQ Explorer
@@ -35,20 +35,36 @@ keytool -list -keystore mqx1-truststore.jks -storepass password
 # List the key store certificate
 keytool -list -keystore mqx1-keystore.jks -alias mqx1 -storepass password
 
-# Check. List the database certificates:
+######################################################################
+############### BEGIN rfhutilc.exe configuration part ################
+######################################################################
+# Now, we also need to package these keys and certificates to a CMS .kdb keystore/truststore, which is a formate required by rfhutil(c).exe tool
+# First, create the store
+runmqakm -keydb -create -db rfhutil_allin1_store.kdb -pw password -type cms -stash
+# Add the queue manager public key to the client key database:
+runmqakm -cert -add -db rfhutil_allin1_store.kdb -label qm1cert -file qm7.crt -format ascii -stashed
+# IVO:: import also APIS root certificate to client's CMS trust store
+runmqakm -cert -add -db rfhutil_allin1_store.kdb -label apisrootcert -file APIS_root_certificate.crt -format ascii -stashed
 
-#runmqakm -cert -list -db mqx1key.kdb -stashed
+# Next, Add the client's certificate and key to the client key database:
+# Import the PKCS12 file. The label **must be** `ibmwebspheremq<your userid>`:
+label=ibmwebspheremq`id -u -n`
+runmqakm -cert -import -target rfhutil_allin1_store.kdb -file mqx1.p12 -target_stashed -pw password -new_label $label
+
+# Last Checkpoint. List the database certificates:
+runmqakm -cert -list -db rfhutil_allin1_store.kdb -stashed
+
+######################################################################
+################# END rfhutilc.exe configuration part ################
+######################################################################
 
 # Create TLS Secret for the Queue Manager
-
 oc create secret tls example-07-qm7-secret -n $OCP_PROJECT --key="qm7.key" --cert="qm7.crt"
 
 # Create TLS Secret with the client's certificate
-
 oc create secret generic example-07-mqx1-secret -n $OCP_PROJECT --from-file=mqx1.crt=mqx1.crt
 
 # Create a config map containing MQSC commands
-
 cat > qm7-configmap.yaml << EOF
 apiVersion: v1
 kind: ConfigMap
@@ -85,7 +101,6 @@ EOF
 oc apply -n $OCP_PROJECT -f qm7-configmap.yaml
 
 # Create the required route for SNI
-
 cat > qm7chl-route.yaml << EOF
 apiVersion: route.openshift.io/v1
 kind: Route
@@ -105,7 +120,6 @@ EOF
 # no need to create route (because not using channel routes) - Operator automatically generates route for hostname :: oc apply -n cp4i -f qm7chl-route.yaml
 
 # Deploy the queue manager
-
 cat > qm7-qmgr.yaml << EOF
 apiVersion: mq.ibm.com/v1beta1
 kind: QueueManager

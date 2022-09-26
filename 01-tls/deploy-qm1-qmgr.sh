@@ -9,7 +9,7 @@
 
 # Create a private key and a self-signed certificate for the queue manager
 
-openssl req -newkey rsa:2048 -nodes -keyout qm1.key -subj "/CN=qm1" -x509 -days 3650 -out qm1.crt
+openssl req -newkey rsa:2048 -nodes -keyout qm1.key -subj "//CN=qm1" -x509 -days 3650 -out qm1.crt
 
 # Create the client key database:
 
@@ -18,6 +18,8 @@ runmqakm -keydb -create -db app1key.kdb -pw password -type cms -stash
 # Add the queue manager public key to the client key database:
 
 runmqakm -cert -add -db app1key.kdb -label qm1cert -file qm1.crt -format ascii -stashed
+# IVO:: import also APIS root certificate to client's JKS trust store
+runmqakm -cert -add -db app1key.kdb -label apisrootcert -file APIS_root_certificate.crt -format ascii -stashed
 
 # Check. List the database certificates:
 
@@ -25,7 +27,7 @@ runmqakm -cert -list -db app1key.kdb -stashed
 
 # Create TLS Secret for the Queue Manager
 
-oc create secret tls example-01-qm1-secret -n cp4i --key="qm1.key" --cert="qm1.crt"
+oc create secret tls example-01-qm1-secret -n $OCP_PROJECT --key="qm1.key" --cert="qm1.crt"
 
 # Create a config map containing MQSC commands
 
@@ -36,12 +38,12 @@ metadata:
   name: example-01-qm1-configmap
 data:
   qm1.mqsc: |
-    DEFINE QLOCAL('Q1') REPLACE DEFPSIST(YES) 
+    DEFINE QLOCAL('Q1') REPLACE DEFPSIST(YES)
     DEFINE CHANNEL(QM1CHL) CHLTYPE(SVRCONN) REPLACE TRPTYPE(TCP) SSLCAUTH(OPTIONAL) SSLCIPH('ANY_TLS12_OR_HIGHER')
     SET CHLAUTH(QM1CHL) TYPE(BLOCKUSER) USERLIST('nobody') ACTION(ADD)
 EOF
 
-oc apply -n cp4i -f qm1-configmap.yaml
+oc apply -n $OCP_PROJECT -f qm1-configmap.yaml
 
 # Create the required route for SNI
 
@@ -61,7 +63,7 @@ spec:
     termination: passthrough
 EOF
 
-oc apply -n cp4i -f qm1chl-route.yaml
+# ROUTE NOT NEEDED oc apply -n $OCP_PROJECT -f qm1chl-route.yaml
 
 # Deploy the queue manager
 
@@ -73,7 +75,7 @@ metadata:
 spec:
   license:
     accept: true
-    license: L-RJON-CD3JKX
+    license: L-RJON-C7QG3S
     use: NonProduction
   queueManager:
     name: QM1
@@ -92,35 +94,35 @@ spec:
             - name: MQSNOAUT
               value: 'yes'
           name: qmgr
-  version: 9.3.0.0-r2
+  version: 9.2.5.0-r2
   web:
-    enabled: false
+    enabled: true
   pki:
     keys:
       - name: example
         secret:
           secretName: example-01-qm1-secret
-          items: 
+          items:
           - tls.key
           - tls.crt
 EOF
 
-oc apply -n cp4i -f qm1-qmgr.yaml
+oc apply -n $OCP_PROJECT -f qm1-qmgr.yaml
 
 # wait 5 minutes for queue manager to be up and running
 # (shouldn't take more than 2 minutes, but just in case)
 for i in {1..60}
 do
-  phase=`oc get qmgr -n cp4i qm1 -o jsonpath="{.status.phase}"`
+  phase=`oc get qmgr -n $OCP_PROJECT qm1 -o jsonpath="{.status.phase}"`
   if [ "$phase" == "Running" ] ; then break; fi
   echo "Waiting for qm1...$i"
-  oc get qmgr -n cp4i qm1
+  oc get qmgr -n $OCP_PROJECT qm1
   sleep 5
 done
 
 if [ $phase == Running ]
-   then echo Queue Manager qm1 is ready; 
-   exit; 
+   then echo Queue Manager qm1 is ready;
+   exit;
 fi
 
 echo "*** Queue Manager qm1 is not ready ***"
