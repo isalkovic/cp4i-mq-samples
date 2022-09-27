@@ -8,6 +8,8 @@
 #
 
 # delete queue manager
+echo "Using project "
+echo $OCP_PROJECT
 oc delete -n $OCP_PROJECT qmgr qm7
 rm qm7-qmgr.yaml
 
@@ -24,4 +26,4 @@ oc delete -n $OCP_PROJECT secret example-07-qm7-secret
 oc delete -n $OCP_PROJECT secret example-07-mqx1-secret
 
 # delete files
-rm qm7.crt qm7.key mqx1-* mqx1.* ccdt.json
+rm qm7.crt qm7.key mqx1-* mqx1.* ccdt.json rfhutil_allin1_store*

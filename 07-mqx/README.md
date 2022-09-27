@@ -461,4 +461,4 @@ This deletes the queue manager and other objects created on OpenShift, and the f
 
 ```
 
-This is the end of the MQ Explorer example.
+This is the end of this tutorial for MQ Explorer and rfhutil configuration.
