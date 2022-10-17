@@ -8,13 +8,13 @@
 #
 
 # configure default Openshift project to use - change this value to the project name applicable to your use case
-export OCP_PROJECT=cp4i-mq-poc
-echo $OCP_PROJECT
+export OCP_PROJECT=cp4i-mq-dev
+echo !!! OCP project used: $OCP_PROJECT - edit this script to fix/change!!!
 
-# Create a private key and a self-signed certificate for the queue manager
+# Create a private key and a self-signed certificate for the queue manager ********* gitbash requires // - if using other tool, use /
 openssl req -newkey rsa:2048 -nodes -keyout qm7.key -subj "//CN=qm7" -x509 -days 3650 -out qm7.crt
 
-# Create a private key and a self-signed certificate for the client application
+# Create a private key and a self-signed certificate for the client application ********* gitbash requires // - if using other tool, use /
 openssl req -newkey rsa:2048 -nodes -keyout mqx1.key -subj "//CN=mqx1" -x509 -days 3650 -out mqx1.crt
 
 # Create the client JKS key store:
@@ -42,7 +42,7 @@ keytool -list -keystore mqx1-keystore.jks -alias mqx1 -storepass password
 # First, create the store
 runmqakm -keydb -create -db rfhutil_allin1_store.kdb -pw password -type cms -stash
 # Add the queue manager public key to the client key database:
-runmqakm -cert -add -db rfhutil_allin1_store.kdb -label qm1cert -file qm7.crt -format ascii -stashed
+runmqakm -cert -add -db rfhutil_allin1_store.kdb -label qm7cert -file qm7.crt -format ascii -stashed
 # IVO:: import also APIS root certificate to client's CMS trust store
 runmqakm -cert -add -db rfhutil_allin1_store.kdb -label apisrootcert -file APIS_root_certificate.crt -format ascii -stashed
 
@@ -146,6 +146,13 @@ spec:
     storage:
       queueManager:
         type: ephemeral
+    resources:
+      limits:
+        cpu: '1'
+        memory: 512Mi
+      requests:
+        cpu: 300m
+        memory: 512Mi
   version: 9.2.5.0-r3
   web:
     enabled: false

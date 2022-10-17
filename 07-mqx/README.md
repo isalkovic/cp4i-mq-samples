@@ -1,7 +1,9 @@
-# Example: Conencting MQ Explorer and rfhutil to QMGR on Openshift
+# Example: Connecting MQ Explorer and rfhutil to QMGR on Openshift
 
 This is a modified example of the original, which shows how to connect MQ Explorer to MQ running on Openshift, when using HOSTNAME instead of CHANNEL in the route. It is based on the [03-auth](../03-auth) example: the connection requires mutual TLS and user permissions are checked. The user identity is `mqx1` instead of `app1`.
+
 Additionally, example has been extended to show how to configure the popular rfhutil tool with the same MQ Queue manager, running on openshift and using mTLS. There are two versions of the rfhutil tool - rfhutil.exe and rfhutilc.exe -> make sure you download and use the RFHUTILC.EXE, which is the one using the MQ client and making a connection to a remote QM.
+The prerequisite for using the rfhutilc tool is to have MQ Client installed. This is also the prerequisite for running the `runmqakm` commands, which are used to generate the .kdb truststore for the rfhutilc tool.
 
 ***Note:*** at the time of writing, this example doesn't work on MacOS.
 
