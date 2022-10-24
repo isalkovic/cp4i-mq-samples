@@ -8,7 +8,7 @@
 #
 
 # delete queue manager
-export OCP_PROJECT=cp4i-mq-dev
+export OCP_PROJECT=cp4i-mq-poc
 echo !!! OCP project used: $OCP_PROJECT !!! echo !!! OCP project used: $OCP_PROJECT - edit this script to fix/change!!!
 
 oc delete -n $OCP_PROJECT qmgr qm7

@@ -8,7 +8,7 @@
 #
 
 # configure default Openshift project to use - change this value to the project name applicable to your use case
-export OCP_PROJECT=cp4i-mq-dev
+export OCP_PROJECT=cp4i-mq-poc
 echo !!! OCP project used: $OCP_PROJECT - edit this script to fix/change!!!
 
 # Create a private key and a self-signed certificate for the queue manager ********* gitbash requires // - if using other tool, use /
@@ -73,7 +73,7 @@ metadata:
 data:
   qm7.mqsc: |
     DEFINE QLOCAL(TEST)
-    DEFINE CHANNEL(QM7CHL) CHLTYPE(SVRCONN) REPLACE TRPTYPE(TCP) SSLCAUTH(REQUIRED) SSLCIPH('ANY_TLS12_OR_HIGHER')
+    DEFINE CHANNEL(QM7CHL) CHLTYPE(SVRCONN) REPLACE TRPTYPE(TCP) SSLCAUTH(REQUIRED) SSLCIPH('ECDHE_RSA_AES_128_CBC_SHA256')
     ALTER AUTHINFO(SYSTEM.DEFAULT.AUTHINFO.IDPWOS) AUTHTYPE(IDPWOS) CHCKCLNT(OPTIONAL)
     SET CHLAUTH('QM7CHL') TYPE(SSLPEERMAP) SSLPEER('CN=mqx1') USERSRC(MAP) MCAUSER('mqx1') ACTION(ADD)
     SET AUTHREC PROFILE('SYSTEM.ADMIN.COMMAND.QUEUE')    OBJTYPE(QUEUE) PRINCIPAL('mqx1') AUTHADD(DSP, INQ, PUT)
@@ -155,7 +155,7 @@ spec:
         memory: 512Mi
   version: 9.2.5.0-r3
   web:
-    enabled: false
+    enabled: true
   pki:
     keys:
       - name: example
@@ -224,7 +224,7 @@ cat > ccdt.json << EOF
             },
             "transmissionSecurity":
             {
-              "cipherSpecification": "ANY_TLS12_OR_HIGHER"
+              "cipherSpecification": "ECDHE_RSA_AES_128_CBC_SHA256"
             },
             "type": "clientConnection"
         }

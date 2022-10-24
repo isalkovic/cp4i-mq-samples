@@ -7,9 +7,22 @@
 # Not for Production use. For demo and training only.
 #
 
+export OCP_PROJECT=cp4i-mq-poc
+echo !!! OCP project used: $OCP_PROJECT - edit this script to fix/change!!!
+
+
 # Create a private key and a self-signed certificate for the queue manager
 
 openssl req -newkey rsa:2048 -nodes -keyout qm1.key -subj "//CN=qm1" -x509 -days 3650 -out qm1.crt
+
+# Create JKS trust store for MQ Explorer and other java applications
+keytool -importcert -file qm1.crt -alias qm1cert -keystore client-truststore.jks -storetype jks -storepass password -noprompt
+# IVO:: import also APIS root certificate to client's JKS trust store
+keytool -keystore client-truststore.jks -storetype jks -import -file APIS_root_certificate.crt -alias apisrootcert -storepass password -noprompt
+
+# List the trust store certificate
+keytool -list -keystore client-truststore.jks -storepass password
+
 
 # Create the client key database:
 
