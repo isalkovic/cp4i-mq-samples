@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<server description="new server">
+
+    <!-- Enable features -->
+    <featureManager>
+	<feature>wmqJmsClient-2.0</feature>
+        <feature>servlet-3.1</feature>
+    	<feature>jndi-1.0</feature>
+    	<feature>jca-1.7</feature>
+    	<feature>jms-2.0</feature>
+
+    </featureManager>
+
+    <variable name="wmqJmsClient.rar.location" value="D:\IBM\mqresourceadapter\wmq.jmsra.rar"/>
+
+    <resourceAdapter id="mqJms" location="D:\IBM\mqresourceadapter\wmq.jmsra.rar">
+    	<classloader apiTypeVisibility="spec, ibm-api, api, third-party"/>
+    </resourceAdapter>
+
+    <!-- IVT Connection factory -->
+    <jmsQueueConnectionFactory connectionManagerRef="ConMgrIVT" jndiName="IVTCF">
+   	<properties.wmqJms channel="IVO.CHANNEL" hostname="localhost" port="1414" transportType="CLIENT"/>
+    </jmsQueueConnectionFactory>
+
+    <connectionManager id="ConMgrIVT" maxPoolSize="10"/>
+
+    <!-- IVT Queues -->
+    <jmsQueue id="IVTQueue" jndiName="IVTQueue">
+   	<properties.wmqJms baseQueueName="IN.Q"/>
+    </jmsQueue>
+
+    <!-- IVT Activation Spec -->
+    <jmsActivationSpec id="wmq.jmsra.ivt/WMQ_IVT_MDB/WMQ_IVT_MDB">
+   	<properties.wmqJms destinationRef="IVTQueue" transportType="CLIENT" queueManager="IVOQM" hostName="localhost" port="1414" maxPoolDepth="1"/>
+    </jmsActivationSpec>
+
+</server>
