@@ -6,6 +6,16 @@
 ### Download MQ Resource adapter
 https://www.ibm.com/support/pages/obtaining-ibm-mq-resource-adapter-websphere-application-server-liberty-profile
 
+The WebSphere MQ Resource Adapter can be downloaded from Fix Central. To locate the latest version that is available for download, enter the phrase "Resource Adapter" in the Text Search box. The name of the file to be downloaded will be in the format of <V.R.M.F>-WS-MQ-Java-InstallRA.jar. From version IBM MQ v9 this format is <V.R.M.F>-IBM-MQ-Java-InstallRA.jar
+
+To start the installation, issue the following command from the directory to which you downloaded the file. Note that this command requires a Java™ Runtime Environment to be installed on your machine and added to the system path:
+java -jar <V.R.M.F>-WS-MQ-Java-InstallRA.jar
+
+Within the selected directory a new directory 'wmq' will be created. Inside the 'wmq' directory, the following files are installed:
+wmq.jmsra.ivt.ear
+wmq.jmsra.rar
+The wmq.jmsra.ivt.ear is the installation verification test program. The wmq.jmsra.rar is the WebSphere MQ Resource Adapter RAR file.
+
 Documentation on adapter:
 https://www.ibm.com/docs/en/ibm-mq/9.3?topic=adapter-liberty-mq-resource
 - The IBM MQ 9.0 resource adapter can be used with wmqJmsClient-2.0 feature only.
