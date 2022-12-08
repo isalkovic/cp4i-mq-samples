@@ -7,7 +7,7 @@
 # Not for Production use. For demo and training only.
 #
 # configure default Openshift project to use - change this value to the project name applicable to your use case
-export OCP_PROJECT=cp4i-mq-dev
+export OCP_PROJECT=cp4i-mq-poc
 echo !!! OCP project used: $OCP_PROJECT - edit this script to fix/change!!!
 
 # delete queue manager

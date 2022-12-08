@@ -1,24 +1,36 @@
-# Example: Adding user authentication
+# Example: Adding user authentication using LDAP
 
-This example deploys a queue manager that requires client authentication.
+This example deploys a queue manager that requires clients and administrators to authenticate using an LDAP server.
+
+
+This example shows two basic access types to MQ:
+1. Administration perspective
+How to connect MQ Explorer to MQ running on Openshift, when using an LDAP user which belongs to "admins" group. This group is configured to have full administrative rights on the queue manager. The connection requires one way TLS.
+
+2. End-user / client application perspective
+How to connect to an MQ running on Openshift, when using an LDAP user, authorized to write/read to a specific queue.
+The client application connection is tested using a Java JMS application and using the popular rfhutilc.exe tool.
 
 ## Preparation
 
 Open a terminal and login to the OpenShift cluster where you installed the CP4I MQ Operator.
 
-If not already done, clone this repository and navigate to this directory:
+If not already done, clone this repository and navigate to the directory where the repository is downloaded:
 
 ```
-git clone https://github.com/ibm-messaging/cp4i-mq-samples.git
-
-```
-
-```
-cd cp4i-mq-samples/03-auth
+git clone https://github.com/isalkovic/cp4i-mq-samples.git
 
 ```
 
-### Clean up if not first time
+```
+cd cp4i-mq-samples/15-ldap
+
+```
+### Set Openshift project name
+
+Open the scripts "deploy-qm15-qmgr.sh" and "cleanup-qm15.sh" and edit the line 10 to match your Openshift project name.
+
+### Clean up your work, if not running for the first time
 
 Delete the files and OpenShift resources created by this example:
 
@@ -29,108 +41,97 @@ Delete the files and OpenShift resources created by this example:
 
 # Configure and deploy the queue manager
 
-You can copy/paste the commands shown here, or run the script [deploy-qm15-qmgr.sh](./deploy-qm15-qmgr.sh).
+You can copy/paste the commands shown here to go step-by-step (suggested for first time to better understand the process), or simply run the script to execute them all [deploy-qm15-qmgr.sh](./deploy-qm15-qmgr.sh).
 
-**Remember you must be logged in to your OpenShift cluster.**
+**Remember that you must be logged in to your OpenShift cluster.**
 
 ## Setup TLS for the queue manager
 
 ### Create a private key and a self-signed certificate for the queue manager
 
-```
-openssl req -newkey rsa:2048 -nodes -keyout qm15.key -subj "/CN=qm15" -x509 -days 3650 -out qm15.crt
+For the purpose of this demonstration we are going to create a self-signed certificate for our Queue manager. Typically this would be a certificate signed by a recognised certificate authority.
 
 ```
-
-## Setup TLS for the MQ client application
-
-### Create a private key and a self-signed certificate for the client application
-
-```
-openssl req -newkey rsa:2048 -nodes -keyout app1.key -subj "/CN=app1" -x509 -days 3650 -out app1.crt
+openssl req -newkey rsa:2048 -nodes -keyout qm15.key -subj "//CN=qm15" -x509 -days 3650 -out qm15.crt
 
 ```
 
-### Set up the client key database
+## Setup TLS for MQ Explorer and the JMS Java Client application
 
-#### Create the client key database:
+Java applications use a different type of key store, called `JKS`. In JKS, there are two stores:
+
+* Trust store: this will contain the queue manager's signer (CA) certificate. In this case, as the queue manager's certificate is self-signed, the trust store will contain the queue manager's certificate itself. Additionally, we should include also root and other certificates in the chain.
+
+* Key store: since we will be using one way TLS, we will not be generating client certificates and we will not need a keystore
+
+### Import the Queue Manager's certificate into a JKS trust store
+
+This will create a file called `mqx1-truststore.jks`.
+
+```
+keytool -importcert -file qm15.crt -alias qm15cert -keystore mqx1-truststore.jks -storetype jks -storepass password -noprompt
+
+```
+
+### IVO:: import also APIS certificates to client's JKS trust store
+Before running the following commands, make sure you have acquired the root certificate and that it is available with the name referenced in the command:
+```
+keytool -keystore mqx1-truststore.jks -storetype jks -import -file APIS_root_certificate.crt -alias apisrootcert -storepass password -noprompt
+```
+
+List the trust store certificate to check that all required certificates have been added to the truststore:
+
+```
+keytool -list -keystore mqx1-truststore.jks -storepass password
+
+```
+
+Output should be similar to this (truncated for readability; ignore the warning about proprietary format):
+
+```
+apisrootcert, 20. ruj 2022., trustedCertEntry,
+Certificate fingerprint (SHA-256): F1:E7:73:46:E4:FC:E0:34:83:E3:94:9D:...
+qm15cert, 20. ruj 2022., trustedCertEntry,
+Certificate fingerprint (SHA-256): E8:A4:E1:08:ED:00:A9:57:E9:59:F9:75:...
+```
+
+## Setup TLS for rfhutil tool
+
+Now, we also need to package these certificates to a CMS .kdb truststore, which is a format required by rfhutilc.exe tool
+First, create the store:
 
 ```
 runmqakm -keydb -create -db app1key.kdb -pw password -type cms -stash
 
 ```
 
-#### Add the queue manager public key to the client key database:
+Next, add the queue manager public key to the client key database:
 
 ```
 runmqakm -cert -add -db app1key.kdb -label qm15cert -file qm15.crt -format ascii -stashed
 
 ```
+Also, we need to import APIS root certificate to client's CMS trust store
 
-To check, list the database certificates:
+```
+runmqakm -cert -add -db app1key.kdb -label apisrootcert -file APIS_root_certificate.crt -format ascii -stashed
 
 ```
 
-runmqakm -cert -list -db app1key.kdb -stashed
-
-```
-
-Expected output:
-
-```
-Certificates found
-* default, - personal, ! trusted, # secret key
-!	qm15cert
-
-```
-
-#### Add the client's certificate and key to the client key database:
-
-First, put the key (`app1.key`) and certificate (`app1.crt`) into a PKCS12 file. PKCS12 is a format suitable for importing into the client key database (`app1key.kdb`):
-
-```
-openssl pkcs12 -export -out app1.p12 -inkey app1.key -in app1.crt -password pass:password
-
-```
-
-Next, import the PKCS12 file. The label **must be** `ibmwebspheremq<your userid>`:
-
-```
-label=ibmwebspheremq`id -u -n`
-runmqakm -cert -import -target app1key.kdb -file app1.p12 -target_stashed -pw password -new_label $label
-
-```
-
-List the database certificates:
+Last Checkpoint. List the store certificates:
 
 ```
 runmqakm -cert -list -db app1key.kdb -stashed
-
-```
-
-Expected output:
-
-```
-Certificates found
-* default, - personal, ! trusted, # secret key
-!	qm15cert
--	ibmwebspheremqemir
 
 ```
 
 ### Create TLS Secret for the Queue Manager
 
 ```
-oc create secret tls example-03-qm15-secret -n cp4i --key="qm15.key" --cert="qm15.crt"
+oc create secret tls example-15-qm15-secret -n $OCP_PROJECT --key="qm15.key" --cert="qm15.crt"
 
 ```
 
-### Create TLS Secret with the client's certificate
-
-```
-oc create secret generic example-03-app1-secret -n cp4i --from-file=app1.crt=app1.crt
-
-```
 
 ## Setup and deploy the queue manager
 
@@ -138,21 +139,46 @@ oc create secret generic example-03-app1-secret -n cp4i --from-file=app1.crt=app
 
 #### Create the config map yaml file
 
+The specific here is that we are configuring an LDAP connection (!!!password hidden and needs to be updated before using!!!) on the queue manager level, creating a separate channel ( QM15CHL ) for client application communication, and setting authorization for two LDAP groups - "users" and "admins". On the LDAP server, these two groups are defined and they contain users "user1" and "user2" in "users" group and "admin1" and "admin2" in "admins" group. Specific authorizations have been set for "user1" and "user2" so that we can demonstrate and test different privileges. Specific configuration lines will be explained in the text below.
+
 ```
 cat > qm15-configmap.yaml << EOF
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: example-03-qm15-configmap
+  name: example-15-qm15-configmap
 data:
   qm15.mqsc: |
-    DEFINE AUTHINFO(IVOQM.IDPW.LDAP) AUTHTYPE(IDPWLDAP) CONNAME(’10.193.8.182(389)’) SHORTUSR(‘cn’) ADOPTCTX(YES) AUTHORMD(SEARCHUSR) BASEDNG(‘dc=maxcrc,dc=com’) BASEDNU(‘ou=People,dc=maxcrc,dc=com’) CHCKCLNT(OPTIONAL) CHCKLOCL(NONE) CLASSGRP(‘organizationalUnit’) CLASSUSR(‘person’) FINDGRP(‘memberOf’) GRPFIELD(‘ou’) LDAPPWD(‘secret’) LDAPUSER(‘cn=Manager,dc=maxcrc,dc=com’) NESTGRP(YES) SECCOMM(NO) USRFIELD(‘cn’)
+    DEFINE AUTHINFO(QM15.IDPW.LDAP) AUTHTYPE(IDPWLDAP) CONNAME('ldap01hz.razvoj.gzaop.local(33389)') SHORTUSR('uid') ADOPTCTX(YES) AUTHORMD(SEARCHGRP) BASEDNG('ou=groups,ou=applications,serialNumber=18683136487-CURH,o=gov,C=HR') BASEDNU('ou=users,ou=applications,serialNumber=18683136487-CURH,o=gov,C=HR') CHCKCLNT(OPTIONAL) CHCKLOCL(NONE) CLASSGRP('accessGroup') CLASSUSR('inetOrgPerson') FINDGRP('member') GRPFIELD('cn') LDAPPWD('*******') LDAPUSER('uid=CURH_reader,ou=AAA-users,ou=users,o=apis-it,c=HR') NESTGRP(YES) SECCOMM(NO) USRFIELD('uid')
     ALTER QMGR CONNAUTH(IVOQM.IDPW.LDAP)
-    DEFINE QLOCAL('TEST') REPLACE DEFPSIST(YES)
     DEFINE CHANNEL(QM15CHL) CHLTYPE(SVRCONN) REPLACE TRPTYPE(TCP) SSLCAUTH(OPTIONAL) SSLCIPH('ANY_TLS12_OR_HIGHER')
     SET CHLAUTH('QM15CHL') TYPE(ADDRESSMAP) ADDRESS('*') USERSRC(CHANNEL) DESCR('sve adrese, user sa kanala, obavezno user i pass provjera') CHCKCLNT(REQUIRED) ACTION(ADD)
-    SET AUTHREC PRINCIPAL('ivotestuser') OBJTYPE(QMGR) AUTHADD(CONNECT,INQ)
-    SET AUTHREC PROFILE('TEST') PRINCIPAL('ivotestuser') OBJTYPE(QUEUE) AUTHADD(BROWSE,GET,INQ,PUT)
+    refresh security
+    DEFINE QLOCAL('TEST1') REPLACE DEFPSIST(YES)
+    DEFINE QLOCAL('TEST2') REPLACE DEFPSIST(YES)
+    SET AUTHREC GROUP('users') OBJTYPE(QMGR) AUTHADD(CONNECT,INQ)
+    SET AUTHREC PROFILE('TEST1') PRINCIPAL('user1') OBJTYPE(QUEUE) AUTHADD(BROWSE,GET,INQ,PUT)
+    SET AUTHREC PROFILE('TEST1') PRINCIPAL('user2') OBJTYPE(QUEUE) AUTHADD(PUT)
+    SET AUTHREC PROFILE('TEST2') PRINCIPAL('user1') OBJTYPE(QUEUE) AUTHADD(PUT)
+    SET AUTHREC PROFILE('TEST2') PRINCIPAL('user2') OBJTYPE(QUEUE) AUTHADD(GET)
+    refresh security
+    DEFINE CHANNEL(SYSTEM.ADMIN.SVRCONN) CHLTYPE(SVRCONN) REPLACE TRPTYPE(TCP) SSLCAUTH(OPTIONAL) SSLCIPH('ANY_TLS12_OR_HIGHER')
+    SET CHLAUTH('SYSTEM.ADMIN.SVRCONN') TYPE(ADDRESSMAP) ADDRESS('*') USERSRC(CHANNEL) DESCR('Administration channel') CHCKCLNT(REQUIRED) ACTION(REPLACE)
+    SET AUTHREC PROFILE('SYSTEM.ADMIN.COMMAND.QUEUE')    OBJTYPE(QUEUE) GROUP('admins') AUTHADD(DSP, INQ, PUT)
+    SET AUTHREC PROFILE('SYSTEM.DEFAULT.MODEL.QUEUE')    OBJTYPE(QUEUE) GROUP('admins') AUTHADD(DSP, INQ, BROWSE, GET)
+    SET AUTHREC PROFILE('SYSTEM.MQEXPLORER.REPLY.MODEL') OBJTYPE(QUEUE) GROUP('admins') AUTHADD(DSP, INQ, GET, PUT, BROWSE)
+    SET AUTHREC PROFILE('**') OBJTYPE(AUTHINFO) GROUP('admins') AUTHADD(ALLADM, CRT)
+    SET AUTHREC PROFILE('**') OBJTYPE(CHANNEL)  GROUP('admins') AUTHADD(ALLADM, CRT)
+    SET AUTHREC PROFILE('**') OBJTYPE(CLNTCONN) GROUP('admins') AUTHADD(ALLADM, CRT)
+    SET AUTHREC PROFILE('**') OBJTYPE(COMMINFO) GROUP('admins') AUTHADD(ALLADM, CRT)
+    SET AUTHREC PROFILE('**') OBJTYPE(LISTENER) GROUP('admins') AUTHADD(ALLADM, CRT)
+    SET AUTHREC PROFILE('**') OBJTYPE(NAMELIST) GROUP('admins') AUTHADD(ALLADM, CRT)
+    SET AUTHREC PROFILE('**') OBJTYPE(PROCESS)  GROUP('admins') AUTHADD(ALLADM, CRT)
+    SET AUTHREC PROFILE('**') OBJTYPE(QUEUE)    GROUP('admins') AUTHADD(ALLADM, CRT, ALLMQI)
+    SET AUTHREC PROFILE('**') OBJTYPE(QMGR)     GROUP('admins') AUTHADD(ALLADM, CONNECT, INQ)
+    SET AUTHREC PROFILE('**') OBJTYPE(SERVICE)  GROUP('admins') AUTHADD(ALLADM, CRT)
+    SET AUTHREC PROFILE('**') OBJTYPE(TOPIC)    GROUP('admins') AUTHADD(ALLADM, CRT, ALLMQI)
+    refresh security
   qm15.ini: |-
     Service:
       Name=AuthorizationService
@@ -161,94 +187,69 @@ data:
     SSL:
       OutboundSNI=HOSTNAME
 EOF
-#
-cat qm15-configmap.yaml
 
 ```
 
-#### Notes:
+#### Note1:
 
-* AUTHINFO
-```
-AUTHINFO(SYSTEM.DEFAULT.AUTHINFO.IDPWOS) TYPE(IDPWOS)
-```
-This is used by the queue manager (queue manager's `CONNAUTH` parameter) and means that client identities will be checked using userids and passwords defined to the operating system.
+* Define LDAP connection for Queue Manager
 
-* CHCKCLNT
 ```
-CHCKCLNT(OPTIONAL)
+DEFINE AUTHINFO(QM15.IDPW.LDAP) AUTHTYPE(IDPWLDAP) CONNAME('ldap01hz.razvoj.gzaop.local(33389)') SHORTUSR('uid') ADOPTCTX(YES) AUTHORMD(SEARCHGRP) BASEDNG('ou=groups,ou=applications,serialNumber=18683136487-CURH,o=gov,C=HR') BASEDNU('ou=users,ou=applications,serialNumber=18683136487-CURH,o=gov,C=HR') CHCKCLNT(OPTIONAL) CHCKLOCL(NONE) CLASSGRP('accessGroup') CLASSUSR('inetOrgPerson') FINDGRP('member') GRPFIELD('cn') LDAPPWD('*******') LDAPUSER('uid=CURH_reader,ou=AAA-users,ou=users,o=apis-it,c=HR') NESTGRP(YES) SECCOMM(NO) USRFIELD('uid')
+ALTER QMGR CONNAUTH(IVOQM.IDPW.LDAP)
 ```
-Clients do not provide userid and password (the userid is mapped by the CHLAUTH record from the TLS certificate).
+Here are some useful links explaining the parameters of LDAP connection configuration:
+https://www.ibm.com/docs/en/ibm-mq/9.3?topic=properties-authentication-information
+https://blogs.perficient.com/2019/08/05/how-to-configure-ibm-mq-authentication-os-and-ldap/
 
-* User mapping
-```
-SET CHLAUTH('qm15CHL') TYPE(SSLPEERMAP) SSLPEER('CN=app1') USERSRC(MAP) MCAUSER('app1')
-```
-This means that, if the client presents a certificate with `CN=app1`, the program will run under userid `app1`. Recall our client's certificate does specify `CN=app1`.
 
-* Permission to connect
-```
-SET AUTHREC PRINCIPAL('app1') OBJTYPE(QMGR) AUTHADD(CONNECT,INQ)
-```
-User `app1` is allowed to connect to the queue manager (and also to query queue manager attributes).
+#### Note2:
 
-* Permission to put/get
-```
-SET AUTHREC PROFILE('Q1') PRINCIPAL('app1') OBJTYPE(QUEUE) AUTHADD(BROWSE,GET,INQ,PUT)
-```
-User `app1` is allowed to put to and get from `Q1` (also to browse messages and query queue attributes).
+* SET AUTHREC commands for the application queues TEST1 and TEST2
 
-* Authorization service
 ```
-qm15.ini: |-
-  Service:
-    Name=AuthorizationService
-    EntryPoints=14
-    SecurityPolicy=UserExternal
+SET AUTHREC GROUP('users') OBJTYPE(QMGR) AUTHADD(CONNECT,INQ)
+SET AUTHREC PROFILE('TEST1') PRINCIPAL('user1') OBJTYPE(QUEUE) AUTHADD(BROWSE,GET,INQ,PUT)
+SET AUTHREC PROFILE('TEST1') PRINCIPAL('user2') OBJTYPE(QUEUE) AUTHADD(PUT)
+SET AUTHREC PROFILE('TEST2') PRINCIPAL('user1') OBJTYPE(QUEUE) AUTHADD(PUT)
+SET AUTHREC PROFILE('TEST2') PRINCIPAL('user2') OBJTYPE(QUEUE) AUTHADD(GET)
 ```
-This is new with MQ 9.2.1 and addresses the problem of dealing with identities in containers. It allows programs to run under userids without having to define them to the operating system. [This blog post by Mark Taylor](https://marketaylor.synology.me/?p=782) provides a very good explanation.
+
+The commands above define that all authenticated users which are members of the 'users' group will have the authorization to connect to the Queue Manager.
+Once authenticated and connected, 'user1' will have the authorization to retrieve messages (GET), put messages (PUT), browse the queue (BROWSE) and inquire queue attributes (INQ), for the queue 'TEST1'. 'user1' will also be allowed to put messages (PUT) on queue 'TEST2'.
+Once authenticated and connected, 'user2' will have the authorization to put messages (PUT) on queue 'TEST1' and to retrieve messages (GET) from queue 'TEST2'.
+
+#### Note3:
+
+* SET AUTHREC commands for full administrative privileges
+
+```
+SET AUTHREC PROFILE('SYSTEM.ADMIN.COMMAND.QUEUE')    OBJTYPE(QUEUE) GROUP('admins') AUTHADD(DSP, INQ, PUT)
+SET AUTHREC PROFILE('SYSTEM.DEFAULT.MODEL.QUEUE')    OBJTYPE(QUEUE) GROUP('admins') AUTHADD(DSP, INQ, BROWSE, GET)
+SET AUTHREC PROFILE('SYSTEM.MQEXPLORER.REPLY.MODEL') OBJTYPE(QUEUE) GROUP('admins') AUTHADD(DSP, INQ, GET, PUT, BROWSE)
+SET AUTHREC PROFILE('**') OBJTYPE(AUTHINFO) GROUP('admins') AUTHADD(ALLADM, CRT)
+SET AUTHREC PROFILE('**') OBJTYPE(CHANNEL)  GROUP('admins') AUTHADD(ALLADM, CRT)
+SET AUTHREC PROFILE('**') OBJTYPE(CLNTCONN) GROUP('admins') AUTHADD(ALLADM, CRT)
+SET AUTHREC PROFILE('**') OBJTYPE(COMMINFO) GROUP('admins') AUTHADD(ALLADM, CRT)
+SET AUTHREC PROFILE('**') OBJTYPE(LISTENER) GROUP('admins') AUTHADD(ALLADM, CRT)
+SET AUTHREC PROFILE('**') OBJTYPE(NAMELIST) GROUP('admins') AUTHADD(ALLADM, CRT)
+SET AUTHREC PROFILE('**') OBJTYPE(PROCESS)  GROUP('admins') AUTHADD(ALLADM, CRT)
+SET AUTHREC PROFILE('**') OBJTYPE(QUEUE)    GROUP('admins') AUTHADD(ALLADM, CRT, ALLMQI)
+SET AUTHREC PROFILE('**') OBJTYPE(QMGR)     GROUP('admins') AUTHADD(ALLADM, CONNECT, INQ)
+SET AUTHREC PROFILE('**') OBJTYPE(SERVICE)  GROUP('admins') AUTHADD(ALLADM, CRT)
+SET AUTHREC PROFILE('**') OBJTYPE(TOPIC)    GROUP('admins') AUTHADD(ALLADM, CRT, ALLMQI)
+```
+
+These commands give all authenticated users, which are members of the `admins` LDAP group, full administrative rights. They are based on the `setmqaut` commands documented in [Granting full administrative access to all resources on a queue manager](https://www.ibm.com/docs/en/ibm-mq/9.3?topic=grar-granting-full-administrative-access-all-resources-queue-manager).
+
 
 #### Create the config map
 
 ```
-oc apply -n cp4i -f qm15-configmap.yaml
+oc apply -n $OCP_PROJECT -f qm15-configmap.yaml
 
 ```
 
-### Create the required route for SNI
-
-```
-cat > qm15chl-route.yaml << EOF
-apiVersion: route.openshift.io/v1
-kind: Route
-metadata:
-  name: example-03-qm15-route
-spec:
-  host: qm15chl.chl.mq.ibm.com
-  to:
-    kind: Service
-    name: qm15-ibm-mq
-  port:
-    targetPort: 1414
-  tls:
-    termination: passthrough
-EOF
-#
-cat qm15chl-route.yaml
-
-```
-
-```
-oc apply -n cp4i -f qm15chl-route.yaml
-
-```
-
-Check:
-
-```
-oc describe route example-03-qm15-route
-
-```
 
 ### Deploy the queue manager
 
@@ -263,96 +264,72 @@ metadata:
 spec:
   license:
     accept: true
-    license: L-RJON-CD3JKX
+    license: L-RJON-C7QG3S
     use: NonProduction
   queueManager:
-    name: qm15
+    name: QM15
     ini:
       - configMap:
-          name: example-03-qm15-configmap
+          name: example-07-qm15-configmap
           items:
             - qm15.ini
     mqsc:
     - configMap:
-        name: example-03-qm15-configmap
+        name: example-07-qm15-configmap
         items:
         - qm15.mqsc
     storage:
       queueManager:
         type: ephemeral
-  version: 9.3.0.0-r2
+  version: 9.2.5.0-r3
   web:
     enabled: false
   pki:
     keys:
       - name: example
         secret:
-          secretName: example-03-qm15-secret
+          secretName: example-07-qm15-secret
           items:
           - tls.key
           - tls.crt
     trust:
-    - name: app1
+    - name: mqx1
       secret:
-        secretName: example-03-app1-secret
+        secretName: example-07-mqx1-secret
         items:
-          - app1.crt
+          - mqx1.crt
 EOF
 #
 cat qm15-qmgr.yaml
 
 ```
-#### Notes:
-
-* Queue manager ini file
-```
-  queueManager:
-    name: qm15
-    ini:
-      - configMap:
-          name: example-03-qm15-configmap
-          items:
-            - qm15.ini
-```
-This specifies the `qm15.ini` portion (the authorization service) of the config map created earlier. It it used to populate the queue manager ini file.
-
 #### Create the queue manager
 
 ```
-oc apply -n cp4i -f qm15-qmgr.yaml
+oc apply -n $OCP_PROJECT -f qm15-qmgr.yaml
 
 ```
-
-# Set up and run the clients
-
-We will put, browse and get messages to test the queue manager we just deployed.
-
-You can copy/paste the commands shown below to a command line, or use these scripts:
-
-* [run-qm15-client-put.sh](./run-qm15-client-put.sh) to put two test messages to the queue `Q1`.
-* [run-qm15-client-browse.sh](./run-qm15-client-browse.sh) to browse the messages (read them but leave them on the queue).
-* [run-qm15-client-get.sh](./run-qm15-client-get.sh) to get messages (read them and remove them from the queue).
-
-## Test the connection
 
 ### Confirm that the queue manager is running
 
 ```
-oc get qmgr -n cp4i qm15
+oc get qmgr -n $OCP_PROJECT qm15
 
 ```
+
+## Create the Channel Table (CCDT) for MQ Explorer
 
 ### Find the queue manager host name
 
 ```
-qmhostname=`oc get route -n cp4i qm15-ibm-mq-qm -o jsonpath="{.spec.host}"`
+qmhostname=`oc get route -n $OCP_PROJECT qm15-ibm-mq-qm -o jsonpath="{.spec.host}"`
 echo $qmhostname
 
 ```
 
 Test (optional):
 ```
-ping -c 3 $qmhostname
+nslookup $qmhostname
 
 ```
 
@@ -364,7 +341,7 @@ cat > ccdt.json << EOF
     "channel":
     [
         {
-            "name": "qm15CHL",
+            "name": "QM15CHL",
             "clientConnection":
             {
                 "connection":
@@ -374,7 +351,7 @@ cat > ccdt.json << EOF
                         "port": 443
                     }
                 ],
-                "queueManager": "qm15"
+                "queueManager": "QM15"
             },
             "transmissionSecurity":
             {
@@ -390,53 +367,73 @@ cat ccdt.json
 
 ```
 
-### Set environment variables for the client
+
+# Define mqclient.ini file
+
+As the last step before connection to our Queue Manager, we need to tell our MQ client applications to connect to the MQ server using HOSTNAME, instead of CHANNEL as the Outbound SNI (default is CHANNEL).
+To do so, we need to create a mqclient.ini file and put it on one of the location where it will be found. It must contain at least the following content:
 
 ```
-export MQCCDTURL=ccdt.json
-export MQSSLKEYR=app1key
-# check:
-echo MQCCDTURL=$MQCCDTURL
-ls -l $MQCCDTURL
-echo MQSSLKEYR=$MQSSLKEYR
-ls -l $MQSSLKEYR.*
-
+SSL:
+   OutboundSNI=HOSTNAME
 ```
 
-### Put messages to the queue
+For location of the mqclient.ini file on Windows, I have used "C:\ProgramData\IBM\MQ".
+Other possible locations are specified in MQ documentation:
+https://www.ibm.com/docs/en/ibm-mq/9.3?topic=file-location-client-configuration
 
-```
-echo "Test message 1" | amqsputc Q1 qm15
-echo "Test message 2" | amqsputc Q1 qm15
+An example mqclient.ini file is provided along with this documentation.
 
-```
-You should see:
+# Connect MQ Explorer
 
-```
-Sample AMQSPUT0 start
-target queue is Q1
-Sample AMQSPUT0 end
-Sample AMQSPUT0 start
-target queue is Q1
-Sample AMQSPUT0 end
-```
-### Get messages from the queue
+## Add remote QMGR to MQ Explorer
 
-The program gets the messages and waits for more. Ends if no more messages after 15 seconds:
+1. Start MQ Explorer.
 
-```
-amqsgetc Q1 qm15
+2. Right-click on `Queue Managers` (top left) and select `Add Remote Queue Manager...`
 
-```
-You should see:
+![add remote QMGR](./images/mqexplorer01.png)
 
-```
-Sample AMQSGET0 start
-message <Test message 1>
-message <Test message 2>
-no more messages
-Sample AMQSGET0 end
-```
+3. Enter the queue manager name (`QM15`, case sensitive) and select the `Connect using a client channel definition table` radio button. Click `Next`.
+
+![QMGR name](./images/mqexplorer02.png)
+
+4. On the next pane (`Specify new connection details`), click `Browse...` and select the file `ccdt.json` just created. Click `Next`.
+
+![add CCDT](./images/mqexplorer03.png)
+
+5. On `Specify SSL certificate key repository details, tick `Enable SSL key repositories`.
+
+5.1. On `Trusted Certificate Store` click on `Browse...` and select the file `mqx1-truststore.jks`.
+
+![SSL repos](./images/mqexplorer04.png)
+
+5.2. Select `Enter password...` and enter the trust store password (in our case, `password`).
+
+![SSL repos password](./images/mqexplorer05.png)
+
+5.3. On `Personal Certificate Store` click on `Browse...` and select the file `mqx1-keystore.jks`.
+
+5.4. Select `Enter password...` and enter the key store password (in our case, `password`).
+
+Click `Finish`.
+
+![Finish](./images/mqexplorer06.png)
+
+You should now have a connection to your QMGR deployed on Openshift.
+
+
+# Configure rfhutilc.exe to connect to the QMgr
+
+1. Start the rfhutilc.exe.
+
+2. Fill in the fields `Queue manager name` and `Queue name` as indicated on the image below.
+
+3. Click on the `Set Conn Id` button and fill the form as indicated on the image below (reference your .kdb file location)
+
+![configure rfhutil tool](./images/rfhutilc01.png)
+
+4. To test, you can push the `Write Q` button. If you get the message similar to "Message sent to TEST length=0" -> this means you have successfully configured your rfhutilc tool.
 
 ## Cleanup
 
@@ -447,6 +444,4 @@ This deletes the queue manager and other objects created on OpenShift, and the f
 
 ```
 
-## Next steps
-
-This example runs with a single user, `app1`, which can put to and get from the `Q1` queue. We'll expand the example by adding a second user, `app2` so that `app1` can put (but not get) and `app2` can get (but not put). See [04-app2](../04-app2).
+This is the end of this tutorial for setting up LDAP authentication and authorization.
