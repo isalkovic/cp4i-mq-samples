@@ -428,27 +428,37 @@ An example mqclient.ini file is provided along with this documentation.
 
 ![add remote QMGR](./images/mqexplorer01.png)
 
-3. Enter the queue manager name (`QM15`, case sensitive) and select the `Connect using a client channel definition table` radio button. Click `Next`.
+3. Enter the queue manager name (`QM15`, case sensitive) and click `Next`.
 
 ![QMGR name](./images/mqexplorer02.png)
 
-4. On the next pane (`Specify new connection details`), click `Browse...` and select the file `ccdt.json` just created. Click `Next`.
+4. On the next pane (`Specify new connection details`), enter the hostname and port (443) of your queue manager and click `Next`.
 
-![add CCDT](./images/mqexplorer03.png)
+![connection details](./images/mqexplorer03.png)
 
-5. On `Specify SSL certificate key repository details, tick `Enable SSL key repositories`.
+5. On `Specify user identification details` tick `Enable user identification` and enter userid `admin1`.
 
-5.1. On `Trusted Certificate Store` click on `Browse...` and select the file `mqx1-truststore.jks`.
+![user identification](./images/mqexplorer03_1.png)
+
+6. On `Specify SSL certificate key repository details`, tick `Enable SSL key repositories`.
+
+6.1. On `Trusted Certificate Store` click on `Browse...` and select the file `mqx1-truststore.jks`.
 
 ![SSL repos](./images/mqexplorer04.png)
 
-5.2. Select `Enter password...` and enter the trust store password (in our case, `password`).
+6.2. Select `Enter password...` and enter the trust store password (in our case, `password`).
 
 ![SSL repos password](./images/mqexplorer05.png)
 
-Click `Finish`.
+7. On `Specify SSL option details` tick `Enable SSL options`, select SSL CipherSpec `ANY_TLS12_OR_HIGHER` and click `Finish`.
+
+![SSL options](./images/mqexplorer06.png)
+
+7.1. When prompted for the `admin1` user password, enter `password` (or different if your LDAP user has a different username/password).
 
 ![Finish](./images/mqexplorer06.png)
+
+Click `OK`.
 
 You should now have a connection to your QMGR deployed on Openshift.
 
