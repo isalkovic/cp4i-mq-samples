@@ -33,6 +33,11 @@ Open a terminal and login to the OpenShift cluster where you installed the CP4I 
 ### Set Openshift project name
 
 Open the scripts "deploy-qm15-qmgr.sh" and "cleanup-qm15.sh" and edit the line 10 to match your Openshift project name.
+Also, set your command line environment variable to the value of your Openshift project name:
+
+```
+export OCP_PROJECT=cp4i-mq-poc
+```
 
 ### Clean up your work, if not running for the first time
 
@@ -148,7 +153,7 @@ oc create secret tls example-15-qm15-secret -n $OCP_PROJECT --key="qm15.key" --c
 
 #### Create the config map yaml file
 
-The specific here is that we are configuring an LDAP connection (!!!password hidden and needs to be updated before using!!!) on the queue manager level, creating a separate channel ( QM15CHL ) for client application communication, and setting authorization for two LDAP groups - "users" and "admins". On the LDAP server, these two groups are defined and they contain users "user1" and "user2" in "users" group and "admin1" and "admin2" in "admins" group. Specific authorizations have been set for "user1" and "user2" so that we can demonstrate and test different privileges. Specific configuration lines will be explained in the text below.
+The specific here is that we are configuring an LDAP connection (**!!!password hidden and needs to be updated before using!!!**) on the queue manager level, creating a separate channel ( QM15CHL ) for client application communication, and setting authorization for two LDAP groups - "users" and "admins". On the LDAP server, these two groups are defined and they contain users "user1" and "user2" in "users" group and "admin1" and "admin2" in "admins" group. Specific authorizations have been set for "user1" and "user2" so that we can demonstrate and test different privileges. Specific configuration lines will be explained in the text below.
 
 Execute the following command to create the configmap YAML file:
 
@@ -287,34 +292,35 @@ spec:
     name: QM15
     ini:
       - configMap:
-          name: example-07-qm15-configmap
+          name: example-15-qm15-configmap
           items:
             - qm15.ini
     mqsc:
     - configMap:
-        name: example-07-qm15-configmap
+        name: example-15-qm15-configmap
         items:
         - qm15.mqsc
     storage:
       queueManager:
         type: ephemeral
+    resources:
+      limits:
+        cpu: '1'
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 512Mi
   version: 9.2.5.0-r3
   web:
-    enabled: false
+    enabled: true
   pki:
     keys:
       - name: example
         secret:
-          secretName: example-07-qm15-secret
+          secretName: example-15-qm15-secret
           items:
           - tls.key
           - tls.crt
-    trust:
-    - name: mqx1
-      secret:
-        secretName: example-07-mqx1-secret
-        items:
-          - mqx1.crt
 EOF
 #
 cat qm15-qmgr.yaml
@@ -331,16 +337,21 @@ oc apply -n $OCP_PROJECT -f qm15-qmgr.yaml
 
 ### Confirm that the queue manager is running
 
-Execute the following command to get details on the queue manager you deployed to Openshift:
+Execute the following command to get notified when the queue manager is ready (could take a few minutes):
 
 ```
-oc get qmgr -n $OCP_PROJECT qm15
+oc get -w qmgr -n $OCP_PROJECT qm15
 
 ```
+When the Queue manager has finished deploying you will see:
+```
+qm15 running
+```
+and then you can cancel the command (CTRL+C).
 
 ## Create the Channel Table (CCDT) for MQ Explorer
 
-### Find the queue manager host name
+### Find the queue manager host name and place it in an environment variable
 
 ```
 qmhostname=`oc get route -n $OCP_PROJECT qm15-ibm-mq-qm -o jsonpath="{.spec.host}"`
