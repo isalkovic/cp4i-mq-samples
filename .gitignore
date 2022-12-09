@@ -7,6 +7,8 @@
 *.yaml
 *.p12
 *.jks
+*.pfx
+*.arm
 ccdt.json
 .DS_Store
 *temp*

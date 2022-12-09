@@ -4,18 +4,19 @@ This example deploys a queue manager that requires clients and administrators to
 
 
 This example shows two basic access types to MQ:
-1. Administration perspective
+1. **Administration perspective**
+
 How to connect MQ Explorer to MQ running on Openshift, when using an LDAP user which belongs to "admins" group. This group is configured to have full administrative rights on the queue manager. The connection requires one way TLS.
 
-2. End-user / client application perspective
-How to connect to an MQ running on Openshift, when using an LDAP user, authorized to write/read to a specific queue.
+2. **End-user / client application perspective**
+
+How to connect to an MQ running on Openshift, when using an LDAP user which belongs to "users" group, which gives it authorization to connecto to queue manager. The user is also authorized to write/read to a specific queue.
 The client application connection is tested using a Java JMS application and using the popular rfhutilc.exe tool.
+The connection requires one way TLS.
 
 ## Preparation
 
-Open a terminal and login to the OpenShift cluster where you installed the CP4I MQ Operator.
-
-If not already done, clone this repository and navigate to the directory where the repository is downloaded:
+If not already done, clone (or download as zip) this repository and navigate to the directory where the repository is downloaded:
 
 ```
 git clone https://github.com/isalkovic/cp4i-mq-samples.git
@@ -26,13 +27,16 @@ git clone https://github.com/isalkovic/cp4i-mq-samples.git
 cd cp4i-mq-samples/15-ldap
 
 ```
+
+Open a terminal and login to the OpenShift cluster where you installed the CP4I MQ Operator.
+
 ### Set Openshift project name
 
 Open the scripts "deploy-qm15-qmgr.sh" and "cleanup-qm15.sh" and edit the line 10 to match your Openshift project name.
 
 ### Clean up your work, if not running for the first time
 
-Delete the files and OpenShift resources created by this example:
+Delete the files and OpenShift resources created previously by this example:
 
 ```
 ./cleanup-qm15.sh
@@ -41,7 +45,7 @@ Delete the files and OpenShift resources created by this example:
 
 # Configure and deploy the queue manager
 
-You can copy/paste the commands shown here to go step-by-step (suggested for first time to better understand the process), or simply run the script to execute them all [deploy-qm15-qmgr.sh](./deploy-qm15-qmgr.sh).
+You can copy/paste the commands shown here to go step-by-step (suggested for first time to better understand the process), or simply run the [deploy-qm15-qmgr.sh](./deploy-qm15-qmgr.sh) script to execute all the commands automatically.
 
 **Remember that you must be logged in to your OpenShift cluster.**
 
@@ -49,7 +53,7 @@ You can copy/paste the commands shown here to go step-by-step (suggested for fir
 
 ### Create a private key and a self-signed certificate for the queue manager
 
-For the purpose of this demonstration we are going to create a self-signed certificate for our Queue manager. Typically this would be a certificate signed by a recognised certificate authority.
+For the purpose of this demonstration we are going to create a self-signed certificate for our Queue manager. For real life scenarios, this would typically be a certificate issued and signed by a recognised certificate authority.
 
 ```
 openssl req -newkey rsa:2048 -nodes -keyout qm15.key -subj "//CN=qm15" -x509 -days 3650 -out qm15.crt
@@ -60,24 +64,26 @@ openssl req -newkey rsa:2048 -nodes -keyout qm15.key -subj "//CN=qm15" -x509 -da
 
 Java applications use a different type of key store, called `JKS`. In JKS, there are two stores:
 
-* Trust store: this will contain the queue manager's signer (CA) certificate. In this case, as the queue manager's certificate is self-signed, the trust store will contain the queue manager's certificate itself. Additionally, we should include also root and other certificates in the chain.
+* **Trust store**: it will contain the queue manager's signer (CA) certificate. In this case, as the queue manager's certificate is self-signed, the trust store will contain the queue manager's certificate itself. Additionally, we should include also root and other certificates in the chain.
 
-* Key store: since we will be using one way TLS, we will not be generating client certificates and we will not need a keystore
+* **Key store**: since we will be using one way TLS, we will not be generating client certificates and we will not need a keystore
 
 ### Import the Queue Manager's certificate into a JKS trust store
 
-This will create a file called `mqx1-truststore.jks`.
+This command will create a file called `mqx1-truststore.jks`.
 
 ```
 keytool -importcert -file qm15.crt -alias qm15cert -keystore mqx1-truststore.jks -storetype jks -storepass password -noprompt
 
 ```
 
-### IVO:: import also APIS certificates to client's JKS trust store
-Before running the following commands, make sure you have acquired the root certificate and that it is available with the name referenced in the command:
+### Next, import also any root/internal and other required certificates to client's JKS trust store
+Before running the following commands, make sure you have acquired the root/other certificates and that it is available with the name referenced in the command:
 ```
-keytool -keystore mqx1-truststore.jks -storetype jks -import -file APIS_root_certificate.crt -alias apisrootcert -storepass password -noprompt
+keytool -keystore mqx1-truststore.jks -storetype jks -import -file YOUR_CERTIFICATE_NAME.crt -alias apisrootcert -storepass password -noprompt
 ```
+
+Repeat the above command for every certificate required to complete the full certificate chain.
 
 List the trust store certificate to check that all required certificates have been added to the truststore:
 
@@ -111,12 +117,15 @@ Next, add the queue manager public key to the client key database:
 runmqakm -cert -add -db app1key.kdb -label qm15cert -file qm15.crt -format ascii -stashed
 
 ```
-Also, we need to import APIS root certificate to client's CMS trust store
+Also, same like with the JKS truststore, we need to import any root/other certificate to client's CMS trust store
 
 ```
-runmqakm -cert -add -db app1key.kdb -label apisrootcert -file APIS_root_certificate.crt -format ascii -stashed
+runmqakm -cert -add -db app1key.kdb -label apisrootcert -file YOUR_CERTIFICATE_NAME.crt -format ascii -stashed
 
 ```
+
+Repeat the above command for every certificate required to complete the full certificate chain.
+
 
 Last Checkpoint. List the store certificates:
 
@@ -125,7 +134,7 @@ runmqakm -cert -list -db app1key.kdb -stashed
 
 ```
 
-### Create TLS Secret for the Queue Manager
+### Create TLS Secret for the Queue Manager, on Openshift
 
 ```
 oc create secret tls example-15-qm15-secret -n $OCP_PROJECT --key="qm15.key" --cert="qm15.crt"
@@ -140,6 +149,8 @@ oc create secret tls example-15-qm15-secret -n $OCP_PROJECT --key="qm15.key" --c
 #### Create the config map yaml file
 
 The specific here is that we are configuring an LDAP connection (!!!password hidden and needs to be updated before using!!!) on the queue manager level, creating a separate channel ( QM15CHL ) for client application communication, and setting authorization for two LDAP groups - "users" and "admins". On the LDAP server, these two groups are defined and they contain users "user1" and "user2" in "users" group and "admin1" and "admin2" in "admins" group. Specific authorizations have been set for "user1" and "user2" so that we can demonstrate and test different privileges. Specific configuration lines will be explained in the text below.
+
+Execute the following command to create the configmap YAML file:
 
 ```
 cat > qm15-configmap.yaml << EOF
@@ -190,20 +201,22 @@ EOF
 
 ```
 
-#### Note1:
+#### Configmap commands explanations - Note 1:
 
-* Define LDAP connection for Queue Manager
+* Defining LDAP connection for Queue Manager
 
 ```
 DEFINE AUTHINFO(QM15.IDPW.LDAP) AUTHTYPE(IDPWLDAP) CONNAME('ldap01hz.razvoj.gzaop.local(33389)') SHORTUSR('uid') ADOPTCTX(YES) AUTHORMD(SEARCHGRP) BASEDNG('ou=groups,ou=applications,serialNumber=18683136487-CURH,o=gov,C=HR') BASEDNU('ou=users,ou=applications,serialNumber=18683136487-CURH,o=gov,C=HR') CHCKCLNT(OPTIONAL) CHCKLOCL(NONE) CLASSGRP('accessGroup') CLASSUSR('inetOrgPerson') FINDGRP('member') GRPFIELD('cn') LDAPPWD('*******') LDAPUSER('uid=CURH_reader,ou=AAA-users,ou=users,o=apis-it,c=HR') NESTGRP(YES) SECCOMM(NO) USRFIELD('uid')
 ALTER QMGR CONNAUTH(IVOQM.IDPW.LDAP)
 ```
 Here are some useful links explaining the parameters of LDAP connection configuration:
+
 https://www.ibm.com/docs/en/ibm-mq/9.3?topic=properties-authentication-information
+
 https://blogs.perficient.com/2019/08/05/how-to-configure-ibm-mq-authentication-os-and-ldap/
 
 
-#### Note2:
+#### Configmap commands explanations - Note 2:
 
 * SET AUTHREC commands for the application queues TEST1 and TEST2
 
@@ -219,7 +232,7 @@ The commands above define that all authenticated users which are members of the 
 Once authenticated and connected, 'user1' will have the authorization to retrieve messages (GET), put messages (PUT), browse the queue (BROWSE) and inquire queue attributes (INQ), for the queue 'TEST1'. 'user1' will also be allowed to put messages (PUT) on queue 'TEST2'.
 Once authenticated and connected, 'user2' will have the authorization to put messages (PUT) on queue 'TEST1' and to retrieve messages (GET) from queue 'TEST2'.
 
-#### Note3:
+#### Configmap commands explanations - Note 3:
 
 * SET AUTHREC commands for full administrative privileges
 
@@ -243,7 +256,9 @@ SET AUTHREC PROFILE('**') OBJTYPE(TOPIC)    GROUP('admins') AUTHADD(ALLADM, CRT,
 These commands give all authenticated users, which are members of the `admins` LDAP group, full administrative rights. They are based on the `setmqaut` commands documented in [Granting full administrative access to all resources on a queue manager](https://www.ibm.com/docs/en/ibm-mq/9.3?topic=grar-granting-full-administrative-access-all-resources-queue-manager).
 
 
-#### Create the config map
+#### Create the config map on Openshift
+
+Execute the following command to create the configmap of Openshift:
 
 ```
 oc apply -n $OCP_PROJECT -f qm15-configmap.yaml
@@ -254,6 +269,8 @@ oc apply -n $OCP_PROJECT -f qm15-configmap.yaml
 ### Deploy the queue manager
 
 #### Create the queue manager's yaml file
+
+Execute the following command to create the QueueManager Custom resource YAML file:
 
 ```
 cat > qm15-qmgr.yaml << EOF
@@ -305,12 +322,16 @@ cat qm15-qmgr.yaml
 ```
 #### Create the queue manager
 
+Execute the following command to create the MQ queue manager on Openshift:
+
 ```
 oc apply -n $OCP_PROJECT -f qm15-qmgr.yaml
 
 ```
 
 ### Confirm that the queue manager is running
+
+Execute the following command to get details on the queue manager you deployed to Openshift:
 
 ```
 oc get qmgr -n $OCP_PROJECT qm15
@@ -334,6 +355,8 @@ nslookup $qmhostname
 ```
 
 ### Create ccdt.json
+
+Execute the following command to create the ccdt.json file, a client channel definition table which will be used by the rfhutil tool:
 
 ```
 cat > ccdt.json << EOF
@@ -411,10 +434,6 @@ An example mqclient.ini file is provided along with this documentation.
 5.2. Select `Enter password...` and enter the trust store password (in our case, `password`).
 
 ![SSL repos password](./images/mqexplorer05.png)
-
-5.3. On `Personal Certificate Store` click on `Browse...` and select the file `mqx1-keystore.jks`.
-
-5.4. Select `Enter password...` and enter the key store password (in our case, `password`).
 
 Click `Finish`.
 
