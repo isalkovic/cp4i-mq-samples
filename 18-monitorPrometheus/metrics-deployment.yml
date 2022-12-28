@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qm18-metric-prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mq-metric-prometheus-app
+  template:
+    metadata:
+      labels:
+        app: mq-metric-prometheus-app
+        app.kubernetes.io/instance: qm1-prometheus-instance
+        app.kubernetes.io/name: qm1-prometheus-name
+    spec:
+      containers:
+      - name: mq-metric-prometheus-app
+        image: quay.io/ivo_salkovic_hr/mq-metric-prometheus
+        ports:
+        - containerPort: 9157
+        envFrom:
+        - configMapRef:
+            name: qm18-metrics-configuration
+  #      - secretRef:
+  #          name: qm18-metrics-credentials

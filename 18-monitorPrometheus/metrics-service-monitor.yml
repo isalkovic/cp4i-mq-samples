@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app.kubernetes.io/instance: qm1-prometheus-instance
+    app.kubernetes.io/name: qm1-prometheus-name
+  name: qm18-prometheus-servicemonitor
+spec:
+  endpoints:
+  - bearerTokenSecret:
+      key: ''
+    port: metrics
+    scheme: http
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: qm1-prometheus-instance
+      app.kubernetes.io/name: qm1-prometheus-name

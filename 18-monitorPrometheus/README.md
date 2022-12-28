@@ -122,6 +122,6 @@ You are now ready to build your custom (Grafana) dashboards and define any alert
 This command deletes the queue manager and other objects created on OpenShift, and the files created by this example:
 
 ```
-./cleanup-qm1.sh
+./cleanup-qm18.sh
 
 ```
