@@ -13,10 +13,10 @@ echo !!! OCP project used: $OCP_PROJECT - edit this script to fix/change!!!
 
 # Create a private key and a self-signed certificate for the queue manager
 
-openssl req -newkey rsa:2048 -nodes -keyout qm1.key -subj "//CN=qm1" -x509 -days 3650 -out qm1.crt
+openssl req -newkey rsa:2048 -nodes -keyout qm18.key -subj "//CN=qm18" -x509 -days 3650 -out qm18.crt
 
 # Create JKS trust store for MQ Explorer and other java applications
-keytool -importcert -file qm1.crt -alias qm1cert -keystore client-truststore.jks -storetype jks -storepass password -noprompt
+keytool -importcert -file qm18.crt -alias qm18cert -keystore client-truststore.jks -storetype jks -storepass password -noprompt
 # IVO:: import also APIS root certificate to client's JKS trust store
 keytool -keystore client-truststore.jks -storetype jks -import -file APIS_root_certificate.crt -alias apisrootcert -storepass password -noprompt
 
@@ -30,7 +30,7 @@ runmqakm -keydb -create -db app1key.kdb -pw password -type cms -stash
 
 # Add the queue manager public key to the client key database:
 
-runmqakm -cert -add -db app1key.kdb -label qm1cert -file qm1.crt -format ascii -stashed
+runmqakm -cert -add -db app1key.kdb -label qm18cert -file qm18.crt -format ascii -stashed
 # IVO:: import also APIS root certificate to client's JKS trust store
 runmqakm -cert -add -db app1key.kdb -label apisrootcert -file APIS_root_certificate.crt -format ascii -stashed
 
@@ -40,63 +40,65 @@ runmqakm -cert -list -db app1key.kdb -stashed
 
 # Create TLS Secret for the Queue Manager
 
-oc create secret tls example-01-qm1-secret -n $OCP_PROJECT --key="qm1.key" --cert="qm1.crt"
+oc create secret tls example-18-qm18-secret -n $OCP_PROJECT --key="qm18.key" --cert="qm18.crt"
 
 # Create a config map containing MQSC commands
 
-cat > qm1-configmap.yaml << EOF
+cat > qm18-configmap.yaml << EOF
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: example-01-qm1-configmap
+  name: example-18-qm18-configmap
 data:
-  qm1.mqsc: |
+  qm18.mqsc: |
     DEFINE QLOCAL('Q1') REPLACE DEFPSIST(YES)
-    DEFINE CHANNEL(QM1CHL) CHLTYPE(SVRCONN) REPLACE TRPTYPE(TCP) SSLCAUTH(OPTIONAL) SSLCIPH('ANY_TLS12_OR_HIGHER')
-    SET CHLAUTH(QM1CHL) TYPE(BLOCKUSER) USERLIST('nobody') ACTION(ADD)
+    DEFINE QLOCAL('Q2') REPLACE DEFPSIST(YES)
+    DEFINE QLOCAL('Q3') REPLACE DEFPSIST(YES)
+    DEFINE CHANNEL(QM18CHL) CHLTYPE(SVRCONN) REPLACE TRPTYPE(TCP)
+    SET CHLAUTH(QM18CHL) TYPE(BLOCKUSER) USERLIST('nobody') ACTION(ADD)
 EOF
 
-oc apply -n $OCP_PROJECT -f qm1-configmap.yaml
+oc apply -n $OCP_PROJECT -f qm18-configmap.yaml
 
 # Create the required route for SNI
 
-cat > qm1chl-route.yaml << EOF
+cat > qm18chl-route.yaml << EOF
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
-  name: example-01-qm1-route
+  name: example-18-qm18-route
 spec:
-  host: qm1chl.chl.mq.ibm.com
+  host: qm18chl.chl.mq.ibm.com
   to:
     kind: Service
-    name: qm1-ibm-mq
+    name: qm18-ibm-mq
   port:
     targetPort: 1414
   tls:
     termination: passthrough
 EOF
 
-# ROUTE NOT NEEDED oc apply -n $OCP_PROJECT -f qm1chl-route.yaml
+# ROUTE NOT NEEDED oc apply -n $OCP_PROJECT -f qm18chl-route.yaml
 
 # Deploy the queue manager
 
-cat > qm1-qmgr.yaml << EOF
+cat > qm18-qmgr.yaml << EOF
 apiVersion: mq.ibm.com/v1beta1
 kind: QueueManager
 metadata:
-  name: qm1
+  name: qm18
 spec:
   license:
     accept: true
     license: L-RJON-CD3JKX
     use: NonProduction
   queueManager:
-    name: QM1
+    name: QM18
     mqsc:
     - configMap:
-        name: example-01-qm1-configmap
+        name: example-18-qm18-configmap
         items:
-        - qm1.mqsc
+        - qm18.mqsc
     storage:
       queueManager:
         type: ephemeral
@@ -121,36 +123,36 @@ spec:
     keys:
       - name: example
         secret:
-          secretName: example-01-qm1-secret
+          secretName: example-18-qm18-secret
           items:
           - tls.key
           - tls.crt
 EOF
 
-oc apply -n $OCP_PROJECT -f qm1-qmgr.yaml
+oc apply -n $OCP_PROJECT -f qm18-qmgr.yaml
 
 # wait 5 minutes for queue manager to be up and running
 # (shouldn't take more than 2 minutes, but just in case)
 for i in {1..60}
 do
-  phase=`oc get qmgr -n $OCP_PROJECT qm1 -o jsonpath="{.status.phase}"`
+  phase=`oc get qmgr -n $OCP_PROJECT qm18 -o jsonpath="{.status.phase}"`
   if [ "$phase" == "Running" ] ; then break; fi
-  echo "Waiting for qm1...$i"
-  oc get qmgr -n $OCP_PROJECT qm1
+  echo "Waiting for qm18...$i"
+  oc get qmgr -n $OCP_PROJECT qm18
   sleep 5
 done
 
 if [ $phase == Running ]
-   then echo Queue Manager qm1 is ready;
+   then echo Queue Manager qm18 is ready;
    exit;
 fi
 
-echo "*** Queue Manager qm1 is not ready ***"
+echo "*** Queue Manager qm18 is not ready ***"
 
 # Create the Client Channel Definition Table (CCDT)
 # Find the queue manager host name
 
-qmhostname=`oc get route -n $OCP_PROJECT qm1-ibm-mq-qm -o jsonpath="{.spec.host}"`
+qmhostname=`oc get route -n $OCP_PROJECT qm18-ibm-mq-qm -o jsonpath="{.spec.host}"`
 echo $qmhostname
 
 # Test:
@@ -164,7 +166,7 @@ cat > ccdt.json << EOF
     "channel":
     [
         {
-            "name": "QM1CHL",
+            "name": "QM18CHL",
             "clientConnection":
             {
                 "connection":
@@ -174,7 +176,7 @@ cat > ccdt.json << EOF
                         "port": 443
                     }
                 ],
-                "queueManager": "QM1"
+                "queueManager": "QM18"
             },
             "transmissionSecurity":
             {

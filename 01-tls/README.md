@@ -47,7 +47,7 @@ openssl req -newkey rsa:2048 -nodes -keyout qm1.key -subj "/CN=qm1" -x509 -days 
 ```
 This creates two files:
 
-* Privaye key: `qm1.key`
+* Private key: `qm1.key`
 
 * Certificate: `qm1.crt`
 
@@ -142,7 +142,7 @@ runmqakm -cert -details -db app1key.kdb -stashed -label qm1cert
 
 ### Configure TLS Certificates for Queue Manager
 
-We create a kubernetes secret with the queue manager's certificate and private key. The secret will be used, when creating the queue manager, to populate the queue manager's key database. 
+We create a kubernetes secret with the queue manager's certificate and private key. The secret will be used, when creating the queue manager, to populate the queue manager's key database.
 
 ```
 oc create secret tls example-01-qm1-secret -n cp4i --key="qm1.key" --cert="qm1.crt"
@@ -162,7 +162,7 @@ metadata:
   name: example-01-qm1-configmap
 data:
   qm1.mqsc: |
-    DEFINE QLOCAL('Q1') REPLACE DEFPSIST(YES) 
+    DEFINE QLOCAL('Q1') REPLACE DEFPSIST(YES)
     DEFINE CHANNEL(QM1CHL) CHLTYPE(SVRCONN) REPLACE TRPTYPE(TCP) SSLCAUTH(OPTIONAL) SSLCIPH('ANY_TLS12_OR_HIGHER')
     SET CHLAUTH(QM1CHL) TYPE(BLOCKUSER) USERLIST('nobody') ACTION(ADD)
 EOF
@@ -181,7 +181,7 @@ The MQSC statements above will run when the queue manager is created:
 
 `SSLCAUTH(OPTIONAL)` makes the TLS connection one-way: the queue manager must send its certificate but the client doesn't have to.
 
-* A Channel Authentication record that allows clients to connect to `QM1CHL` ("block nobody" reverses the CHLAUTH setting that blocks channels connections by default). 
+* A Channel Authentication record that allows clients to connect to `QM1CHL` ("block nobody" reverses the CHLAUTH setting that blocks channels connections by default).
 
 #### Create the config map
 
@@ -245,7 +245,7 @@ Namespace:		cp4i
 Created:		15 seconds ago
 Labels:			<none>
 Annotations:		...
-			
+
 Requested Host:		qm1chl.chl.mq.ibm.com
 			   exposed on router default (host ...
 Path:			<none>
@@ -300,7 +300,7 @@ spec:
       - name: example
         secret:
           secretName: example-01-qm1-secret
-          items: 
+          items:
           - tls.key
           - tls.crt
 EOF
@@ -373,7 +373,7 @@ Setting the environment variable `MQSNOAUT=yes` disables user authentication (cl
     enabled: false
 ```
 
-In Cloud Pak for Integration, the MQ Web Console is accessed from Platform Navigator. We are using the minimum configuration needed to run a queue manager, so are setting this to `enabled: false`. If you enable this setting to use the MQ Web Console, you must install the Cloud Pak for Integration operator and create an instance of Platform Navigator. 
+In Cloud Pak for Integration, the MQ Web Console is accessed from Platform Navigator. We are using the minimum configuration needed to run a queue manager, so are setting this to `enabled: false`. If you enable this setting to use the MQ Web Console, you must install the Cloud Pak for Integration operator and create an instance of Platform Navigator.
 
 * Queue manager key and certificate:
 
@@ -383,7 +383,7 @@ In Cloud Pak for Integration, the MQ Web Console is accessed from Platform Navig
       - name: example
         secret:
           secretName: example-01-qm1-secret
-          items: 
+          items:
           - tls.key
           - tls.crt
 ```
@@ -580,4 +580,3 @@ This deletes the queue manager and other objects created on OpenShift, and the f
 ## Next steps
 
 Next we'll try to implement mutual TLS. See [02-mtls](../02-mtls).
-
