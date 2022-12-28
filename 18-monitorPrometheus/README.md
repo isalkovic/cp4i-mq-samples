@@ -5,10 +5,10 @@ By default, MQ exposes certain metrics in Prometheus format, listening on port 5
 This example shows how to set up collection of these metrics from the queue manager and how to convert them (exporter) to the format required by Prometheus.
 
 Source: These instructions are based on:
-https://www.ibm.com/docs/en/ibm-mq/9.3?topic=operator-monitoring-when-using-mq
-https://github.com/ibm-messaging/mq-metric-samples
-https://production-gitops.dev/guides/cp4i/mq/monitoring/topic3/#enable-ci-resources
-https://community.ibm.com/community/user/integration/blogs/matt-roberts1/2021/05/03/monitoring-mq-qdepth-cp4i
+- https://www.ibm.com/docs/en/ibm-mq/9.3?topic=operator-monitoring-when-using-mq
+- https://github.com/ibm-messaging/mq-metric-samples
+- https://production-gitops.dev/guides/cp4i/mq/monitoring/topic3/#enable-ci-resources
+- https://community.ibm.com/community/user/integration/blogs/matt-roberts1/2021/05/03/monitoring-mq-qdepth-cp4i
 
 ## Preparation
 
@@ -73,7 +73,7 @@ Run the script:
 
 ```
 
-### Put sample messages to the queue
+## Put sample messages to the queue
 
 The script above has put some messages in the queues Q1, Q2 and Q3, so that we have some data to look at in the dashboards.
 If you would like, you can put some quick sample messages to the queues , to see how the dashboards are affected.
@@ -94,7 +94,30 @@ target queue is Q1
 Sample AMQSPUT0 end
 ```
 
-## Cleanup
+# Viewing the metrics in Openshift
+
+You should now be ready to look at the new metric , through your Openshift dashboards.
+
+1. Let's start by checking that the metrics are visible.
+In your Openshift web console, navigate in the menu to `Observe->Metrics`:
+
+![select metrics in the menu](./images/01-ocpMetrics.png)
+
+2. Enter and select `ibmmq_queue_depth` in the expression field.
+
+![find the metric and run the query](./images/02-ocpMetrics2.png)
+
+Note:: if you do not see the `ibmmq_queue_` prefixed metrics, this means that something was not properly configured on your cluster and you will have to check where is the problem.
+
+3. Click the `Run queries` blue button and you should get a graph showing current queue depths for the three queues defined on QM18 - Q1, Q2 and Q3.
+
+![metrics graph](./images/03-ocpMetricsGraph.png)
+
+## Next steps
+
+You are now ready to build your custom (Grafana) dashboards and define any alerts, but this is out of the scope of this tutorial.
+
+# Cleanup
 
 This command deletes the queue manager and other objects created on OpenShift, and the files created by this example:
 
