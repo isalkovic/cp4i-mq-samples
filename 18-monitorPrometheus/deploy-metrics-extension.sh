@@ -12,30 +12,30 @@ echo !!! OCP project used: $OCP_PROJECT - edit this script to fix/change!!!
 
 # Create a new ServiceAccount that will ensure the metrics pod is
 # deployed using the most secure Restricted SCC
-oc apply -f sa-pod-deployer.yaml
+oc apply -f sa-pod-deployer.yml
 
 # secret needed only if qmgr requires authentication
 #oc apply -f metrics-secret.yaml
 
-oc apply -f metrics-configmap.yaml
+oc apply -f metrics-configmap.yml
 
 # Update the spec.containers.image attribute in metrics-pod.yaml to match
 # your container registry and image name
 #vi metrics-pod.yaml
 
 # Deploy the metrics pod using the service account
-oc apply -f metrics-deployment.yaml #--as=qm1-my-service-account qm1-ibm-mq
+oc apply -f metrics-deployment.yml #--as=qm1-my-service-account qm1-ibm-mq
 
 # Create a Service object that exposes the metrics pod so that it can
 # be discovered by monitoring tools that are looking for Prometheus endpoints
 #
 # Note that the spec.selector.app matches the metadata.labels.app property
 # defined in metrics-pod.yaml
-oc apply -f metrics-service.yaml
+oc apply -f metrics-service.yml
 
 # we also need to deploy the servicemonitor, which will add a target for Prometheus to collect the metrics from.
 # This command requires additional priviledges, so if it fails, you may have to involve your cluster administrator.
-oc apply -f metrics-service-monitor.yaml
+oc apply -f metrics-service-monitor.yml
 
 # Optionally, if you want to see the data being emitted by the metrics pods you can make your own call to the
 # Prometheus endpoint by exec’ing into your queue manager pod and using curl to call the endpoint, for example:
