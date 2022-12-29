@@ -13,13 +13,24 @@ Open a terminal and login to the OpenShift cluster where you installed the CP4I 
 Clone this repository and navigate to this directory:
 
 ```
-git clone https://github.com/ibm-messaging/cp4i-mq-samples.git
+git clone https://github.com/isalkovic/cp4i-mq-samples.git
 
 ```
 
 ```
 cd cp4i-mq-samples/01-tls
 
+```
+
+### Set Openshift project name
+In the terminal, run the following command (or appropriate depending on your OS/environment):
+```
+export OCP_PROJECT=cp4i-mq-poc
+```
+Remember to change the name of the project to the actual Project name on Openshift, which you will be using.
+You can check that the value is set properly by running the following command:
+```
+echo $OCP_PROJECT
 ```
 
 ### Clean up if not first time
@@ -33,7 +44,7 @@ Delete the files and OpenShift resources created by this example:
 
 # Configure and deploy the queue manager
 
-You can copy/paste the commands shown here, or run the script [deploy-qm1-qmgr.sh](./deploy-qm1-qmgr.sh).
+You can copy/paste the commands shown here, or run the script [deploy-qm1-qmgr.sh](./deploy-qm1-qmgr.sh) which will execute all the commands automatically.
 
 **Remember you must be logged in to your OpenShift cluster.**
 
@@ -42,10 +53,10 @@ You can copy/paste the commands shown here, or run the script [deploy-qm1-qmgr.s
 ### Create a private key and a self-signed certificate for the queue manager
 
 ```
-openssl req -newkey rsa:2048 -nodes -keyout qm1.key -subj "/CN=qm1" -x509 -days 3650 -out qm1.crt
+openssl req -newkey rsa:2048 -nodes -keyout qm1.key -subj "//CN=qm1" -x509 -days 3650 -out qm1.crt
 
 ```
-This creates two files:
+This command creates two files:
 
 * Private key: `qm1.key`
 
@@ -111,7 +122,7 @@ This creates 4 files:
 
 * Certificate requests: `app1key.rdb`
 
-* Password stash: `app1key.sth`. Used to pass the password (`"password"`) in commands instead of promting the user.
+* Password stash: `app1key.sth`. Used to pass the password (`"password"`) in commands instead of prompting the user.
 
 #### Add the queue manager's certificate to the client key database:
 
@@ -145,7 +156,7 @@ runmqakm -cert -details -db app1key.kdb -stashed -label qm1cert
 We create a kubernetes secret with the queue manager's certificate and private key. The secret will be used, when creating the queue manager, to populate the queue manager's key database.
 
 ```
-oc create secret tls example-01-qm1-secret -n cp4i --key="qm1.key" --cert="qm1.crt"
+oc create secret tls example-01-qm1-secret -n $OCP_PROJECT --key="qm1.key" --cert="qm1.crt"
 
 ```
 
@@ -186,79 +197,9 @@ The MQSC statements above will run when the queue manager is created:
 #### Create the config map
 
 ```
-oc apply -n cp4i -f qm1-configmap.yaml
+oc apply -n $OCP_PROJECT -f qm1-configmap.yaml
 
 ```
-
-### Create the required route for SNI
-
-MQ Clients use [Server Name Indication](https://datatracker.ietf.org/doc/html/rfc3546#section-3.1) (SNI) to connect to queue managers on OpenShift. This requires a route with a host name in the form `<lowercase channel name>.chl.mq.ibm.com`. We create that route below.
-
-It is easier to only use uppercase letters and numbers for the channel name. This makes the route's host name easier to determine. Other characters are converted according to rules described [here](https://www.ibm.com/docs/en/ibm-mq/9.3?topic=requirements-how-mq-provides-multiple-certificates-capability).
-
-For example:
-
-* Channel `TO.QMGR1` maps to an SNI address of `to2e-qmgr1.chl.mq.ibm.com`.
-
-* Channel `to.qmgr1` maps to an SNI address of `74-6f-2e-71-6d-67-72-1.chl.mq.ibm.com`.
-
-* Channel `QM1CHL` maps to an SNI address of `qm1chl.chl.mq.ibm.com`. ***Much more readable!***
-
-```
-cat > qm1chl-route.yaml << EOF
-apiVersion: route.openshift.io/v1
-kind: Route
-metadata:
-  name: example-01-qm1-route
-spec:
-  host: qm1chl.chl.mq.ibm.com
-  to:
-    kind: Service
-    name: qm1-ibm-mq
-  port:
-    targetPort: 1414
-  tls:
-    termination: passthrough
-EOF
-#
-cat qm1chl-route.yaml
-
-```
-
-```
-oc apply -n cp4i -f qm1chl-route.yaml
-
-```
-
-Check:
-
-```
-oc describe route example-01-qm1-route
-
-```
-
-You should see:
-
-```
-Name:			example-01-qm1-route
-Namespace:		cp4i
-Created:		15 seconds ago
-Labels:			<none>
-Annotations:		...
-
-Requested Host:		qm1chl.chl.mq.ibm.com
-			   exposed on router default (host ...
-Path:			<none>
-TLS Termination:	passthrough
-Insecure Policy:	<none>
-Endpoint Port:		1414
-
-Service:	qm1-ibm-mq
-Weight:		100 (100%)
-Endpoints:	<error: endpoints "qm1-ibm-mq" not found>
-```
-
-Note the `Endpoints` error at the end. This is because the route points to a service (the queue manager's) that does not exist yet. It will be created with the queue manager.
 
 ### Deploy the queue manager
 
@@ -319,17 +260,6 @@ cat qm1-qmgr.yaml
 ```
 
 The MQ version depends on the OpenShift MQ Operator version. To find out your MQ Operator version:
-```
-oc get sub -n cp4i
-
-```
-
-In this case, the result is (formatted for readbility; your output may differ):
-```
-NAME                                          PACKAGE   SOURCE                CHANNEL
-...
-ibm-mq                                        ibm-mq    ibm-operator-catalog  v2.0
-```
 
 See [Version support for the IBM MQ Operator](https://www.ibm.com/docs/en/ibm-mq/9.3?topic=operator-version-support-mq) for a list of MQ versions supported by this MQ Operator version.
 
@@ -393,9 +323,43 @@ The `pki` section points to the secret (created earlier) containing the queue ma
 #### Create the queue manager
 
 ```
-oc apply -n cp4i -f qm1-qmgr.yaml
+oc apply -n $OCP_PROJECT -f qm1-qmgr.yaml
 
 ```
+
+# Connecting the MQ Explorer to the Q manager
+
+If you would like to connect your MQ Explorer tool to this queue manager, follow these steps.
+
+## Add remote QMGR to MQ Explorer
+
+1. Start MQ Explorer.
+
+2. Right-click on `Queue Managers` (top left) and select `Add Remote Queue Manager...`
+
+3. Enter the queue manager name (`QM1`, case sensitive) and select the `Connect using a client channel definition table` radio button. Click `Next`.
+
+![QMGR name](./images/mqexplorer01.png)
+
+4. On the next pane (`Specify new connection details`), click `Browse...` and select the file `ccdt.json` just created. Click `Next`.
+
+![add CCDT](./images/mqexplorer02.png)
+
+5. On `Specify SSL certificate key repository details`, tick `Enable SSL key repositories`.
+
+5.1. On `Trusted Certificate Store` click on `Browse...` and select the file `client-truststore.jks`.
+
+![SSL repos](./images/mqexplorer03.png)
+
+5.2. Select `Enter password...` and enter the trust store password (in our case, `password`).
+
+![SSL repos password](./images/mqexplorer03_1.png)
+
+5.3. On `Specify SSL Option Detail` click on the `Finish` button.
+
+![Finish](./images/mqexplorer04_1.png)
+
+You should now have a connection to your QMGR deployed on Openshift.
 
 # Set up and run the clients
 
@@ -414,7 +378,7 @@ You can copy/paste the commands shown below to a command line, or use these scri
 It takes 2-5 minutes for the queue manager state to go from "Pending" to "Running".
 
 ```
-oc get qmgr -n cp4i qm1
+oc get qmgr -n $OCP_PROJECT qm1
 
 ```
 
@@ -423,16 +387,22 @@ oc get qmgr -n cp4i qm1
 The client needs this to specify the host to connec to.
 
 ```
-qmhostname=`oc get route -n cp4i qm1-ibm-mq-qm -o jsonpath="{.spec.host}"`
+qmhostname=`oc get route -n $OCP_PROJECT qm1-ibm-mq-qm -o jsonpath="{.spec.host}"`
 echo $qmhostname
 
 ```
 
 Test (optional):
 ```
-ping -c 3 $qmhostname
+curl --insecure https://$qmhostname
 
 ```
+If you get a message
+```
+curl: (52) Empty reply from server
+```
+this means that the connection to the server has been established.
+
 
 ### Create `ccdt.json` (Client Channel Definition Table)
 
@@ -579,4 +549,4 @@ This deletes the queue manager and other objects created on OpenShift, and the f
 
 ## Next steps
 
-Next we'll try to implement mutual TLS. See [02-mtls](../02-mtls).
+Next, we'll try to implement mutual TLS. See [02-mtls](../02-mtls).

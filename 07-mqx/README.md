@@ -390,22 +390,6 @@ cat ccdt.json
 
 # Connect MQ Explorer
 
-## Define mqclient.ini file
-
-As the last step before starting and configuring MQ Explorer, we need to tell MQ Explorer to connect to the MQ server using HOSTNAME, instead of CHANNEL (default is CHANNEL).
-To do so, we need to create a mqclient.ini file and put it on one of the location where it will be found. It must contain at least the following content:
-
-```
-SSL:
-   AllowTLSV13=TRUE
-   OutboundSNI=HOSTNAME
-```
-For location of the mqclient.ini file on Windows, I have used "C:\ProgramData\IBM\MQ".
-Other possible locations are specified in MQ documentation:
-https://www.ibm.com/docs/en/ibm-mq/9.3?topic=file-location-client-configuration
-
-An example mqclient.ini file is provided along with this documentation.
-
 ## Add remote QMGR to MQ Explorer
 
 1. Start MQ Explorer.
@@ -441,6 +425,22 @@ Click `Finish`.
 ![Finish](./images/mqexplorer06.png)
 
 You should now have a connection to your QMGR deployed on Openshift.
+
+## Define mqclient.ini file
+
+As the last step before starting and configuring access through rfhutilc tool, we need to tell the MQ client (which rfhutilc uses) to connect to the MQ server using HOSTNAME as outbound SNI, instead of CHANNEL (default is CHANNEL).
+To do so, we need to create a mqclient.ini file and put it on one of the location where it will be found. It must contain at least the following content:
+
+```
+SSL:
+   AllowTLSV13=TRUE
+   OutboundSNI=HOSTNAME
+```
+For location of the mqclient.ini file on Windows, I have used "C:\ProgramData\IBM\MQ".
+Other possible locations are specified in MQ documentation:
+https://www.ibm.com/docs/en/ibm-mq/9.3?topic=file-location-client-configuration
+
+An example mqclient.ini file is provided along with this documentation.
 
 ## Configure rfhutilc.exe to connect to the QMgr
 
