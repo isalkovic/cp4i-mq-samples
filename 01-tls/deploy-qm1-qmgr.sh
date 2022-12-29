@@ -7,7 +7,7 @@
 # Not for Production use. For demo and training only.
 #
 
-export OCP_PROJECT=cp4i-mq-poc
+export OCP_PROJECT=cp4i-mq-dev
 echo !!! OCP project used: $OCP_PROJECT - edit this script to fix/change!!!
 
 
@@ -142,10 +142,8 @@ done
 
 if [ $phase == Running ]
    then echo Queue Manager qm1 is ready;
-   exit;
+   break;
 fi
-
-echo "*** Queue Manager qm1 is not ready ***"
 
 # Create the Client Channel Definition Table (CCDT)
 # Find the queue manager host name
@@ -155,7 +153,7 @@ echo $qmhostname
 
 # Test:
 
-nslookup $qmhostname
+curl --insecure https://$qmhostname
 
 # Create ccdt.json
 
