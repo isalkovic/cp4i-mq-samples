@@ -1,6 +1,6 @@
 # Example: Enabling queue-related metrics (like Q.depth) and configuring monitoring through CP4I Prometheus and Grafana
 
-By default, MQ exposes certain metrics in Prometheus format, listening on port 5179. However, these metrics are related to the queue manager and do not include metrics related to queues. To monitor a metric like queue depth, we need to do some customization.
+By default, MQ exposes certain metrics in Prometheus format, listening on port 9157. However, these metrics are related to the queue manager and do not include metrics related to queues. To monitor a metric like queue depth, we need to do some customization.
 
 This example shows how to set up collection of these metrics from the queue manager and how to convert them (exporter) to the format required by Prometheus.
 
